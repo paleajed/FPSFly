@@ -47,7 +47,7 @@ Mirror Y : opposite Y direction.
 bl_info = {
 	"name": "FPSFly",
 	"author": "Gert De Roost",
-	"version": (0, 3, 2),
+	"version": (0, 4, 0),
 	"blender": (2, 6, 8),
 	"location": "View3D > UI > FPSFly",
 	"description": "FPS viewport navigation",
@@ -85,7 +85,7 @@ black.red = 0
 black.green = 0
 black.blue = 0
 if sys.platform == "linux":
-	dll = cdll.LoadLibrary('libX11.so')
+	dll = cdll.LoadLibrary("libX11.so")
 
 ready = 0
 started = 0
@@ -135,6 +135,71 @@ bpy.types.Scene.PreSelOff = bpy.props.BoolProperty(
 
 
 
+class SetKey(bpy.types.Operator):
+	bl_idname = "fpsfly.setkey"
+	bl_label = "Set Key Binding"
+	
+	key = bpy.props.StringProperty()
+
+	def invoke(self, context, event):
+	
+		context.window_manager.modal_handler_add(self)
+		
+		return {"RUNNING_MODAL"}
+
+	def modal(self, context, event):
+	
+		isset = 0
+		if not(event.type in ["MOUSEMOVE", "INBETWEEN_MOUSEMOVE", "TIMER", "NONE"]):
+			if event.value == "PRESS":
+				if self.key == "mouselook":
+					addonprefs.Mouselook = event.type
+				if self.key == "left1":
+					addonprefs.Left1 = event.type
+				if self.key == "left2":
+					addonprefs.Left2 = event.type
+				if self.key == "left3":
+					addonprefs.Left3 = event.type
+				if self.key == "right1":
+					addonprefs.Right1 = event.type
+				if self.key == "right2":
+					addonprefs.Right2 = event.type
+				if self.key == "right3":
+					addonprefs.Right3 = event.type
+				if self.key == "forward1":
+					addonprefs.Forward1 = event.type
+				if self.key == "forward2":
+					addonprefs.Forward2 = event.type
+				if self.key == "forward3":
+					addonprefs.Forward3 = event.type
+				if self.key == "back1":
+					addonprefs.Back1 = event.type
+				if self.key == "back2":
+					addonprefs.Back2 = event.type
+				if self.key == "back3":
+					addonprefs.Back3 = event.type
+				if self.key == "up1":
+					addonprefs.Up1 = event.type
+				if self.key == "up2":
+					addonprefs.Up2 = event.type
+				if self.key == "up3":
+					addonprefs.Up3 = event.type
+				if self.key == "down1":
+					addonprefs.Down1 = event.type
+				if self.key == "down2":
+					addonprefs.Down2 = event.type
+				if self.key == "down3":
+					addonprefs.Down3 = event.type
+				isset = 1
+		
+		if isset:
+			bpy.context.region.tag_redraw()
+			return {"FINISHED"}
+		else:
+			return {"RUNNING_MODAL"}
+
+
+
 class SimpleMouseOperator(bpy.types.Operator):
 	bl_idname = "wm.fps_mouse_position"
 	bl_label = "Invoke Mouse Operator"
@@ -146,7 +211,7 @@ class SimpleMouseOperator(bpy.types.Operator):
 		mxcenter = event.mouse_x
 		mycenter = event.mouse_y
 		
-		return {'FINISHED'}
+		return {"FINISHED"}
 
 
 class FPSFlyPanel(bpy.types.Panel):
@@ -165,6 +230,102 @@ class FPSFlyAddonPreferences(bpy.types.AddonPreferences):
 
 	bl_idname = "space_view3d_fpsfly"
 	
+	
+	Mouselook = bpy.props.StringProperty(
+			name = "Mouselook Button/Key", 
+			description = "Key binding for mouselook",
+			default = "RIGHTMOUSE")
+
+	Left1 = bpy.props.StringProperty(
+			name = "", 
+			description = "Key binding 1 for strafing left",
+			default = "A")
+
+	Left2 = bpy.props.StringProperty(
+			name = "", 
+			description = "Key binding 2 for strafing left",
+			default = "NOT SET")
+
+	Left3 = bpy.props.StringProperty(
+			name = "", 
+			description = "Key binding 3 for strafing left",
+			default = "NOT SET")
+
+	Right1 = bpy.props.StringProperty(
+			name = "", 
+			description = "Key binding 1 for strafing right",
+			default = "D")
+
+	Right2 = bpy.props.StringProperty(
+			name = "", 
+			description = "Key binding 2 for strafing right",
+			default = "NOT SET")
+
+	Right3 = bpy.props.StringProperty(
+			name = "", 
+			description = "Key binding 3 for strafing right",
+			default = "NOT SET")
+
+	Forward1 = bpy.props.StringProperty(
+			name = "", 
+			description = "Key binding 1 for moving forward",
+			default = "W")
+
+	Forward2 = bpy.props.StringProperty(
+			name = "", 
+			description = "Key binding 2 for moving forward",
+			default = "NOT SET")
+
+	Forward3 = bpy.props.StringProperty(
+			name = "", 
+			description = "Key binding 3 for moving forward",
+			default = "NOT SET")
+
+	Back1 = bpy.props.StringProperty(
+			name = "", 
+			description = "Key binding 1 for moving back",
+			default = "S")
+
+	Back2 = bpy.props.StringProperty(
+			name = "", 
+			description = "Key binding 2 for moving back",
+			default = "NOT SET")
+
+	Back3 = bpy.props.StringProperty(
+			name = "", 
+			description = "Key binding 3 for moving back",
+			default = "NOT SET")
+
+	Up1 = bpy.props.StringProperty(
+			name = "", 
+			description = "Key binding 1 for moving up",
+			default = "E")
+
+	Up2 = bpy.props.StringProperty(
+			name = "", 
+			description = "Key binding 2 for moving up",
+			default = "SPACE")
+
+	Up3 = bpy.props.StringProperty(
+			name = "", 
+			description = "Key binding 3 for moving up",
+			default = "NOT SET")
+
+	Down1 = bpy.props.StringProperty(
+			name = "", 
+			description = "Key binding 1 for moving down",
+			default = "Q")
+
+	Down2 = bpy.props.StringProperty(
+			name = "", 
+			description = "Key binding 2 for moving down",
+			default = "C")
+
+	Down3 = bpy.props.StringProperty(
+			name = "", 
+			description = "Key binding 3 for moving down",
+			default = "X")
+
 	Keyboard = bpy.props.EnumProperty(
 			items = (("QWERTY", "QWERTY", "Set keyboard layout to QWERTY"), ("AZERTY", "AZERTY", "Set keyboard layout to AZERTY")),
 			name = "Keyboard", 
@@ -202,6 +363,64 @@ class FPSFlyAddonPreferences(bpy.types.AddonPreferences):
 		self.layout.prop(self, "Keyboard")
 		self.layout.prop(self, "MSens")
 		self.layout.prop(self, "YMirror")
+		self.layout.label(text="Key Bindings:")
+		row = self.layout.row()
+		row.prop(self, "Mouselook")
+		row.operator("fpsfly.setkey", text="Set").key="mouselook" 		
+		split = self.layout.split(0.1)
+		split.label(text="Left Key")
+		row = split.row()
+		row.prop(self, "Left1")
+		row.operator("fpsfly.setkey", text="Set").key="left1" 
+		row.prop(self, "Left2")
+		row.operator("fpsfly.setkey", text="Set").key="left2" 
+		row.prop(self, "Left3")
+		row.operator("fpsfly.setkey", text="Set").key="left3" 
+		split = self.layout.split(0.1)
+		split.label(text="Right Key")
+		row = split.row()
+		row.prop(self, "Right1")
+		row.operator("fpsfly.setkey", text="Set").key="right1" 
+		row.prop(self, "Right2")
+		row.operator("fpsfly.setkey", text="Set").key="right2" 
+		row.prop(self, "Right3")
+		row.operator("fpsfly.setkey", text="Set").key="right3" 
+		split = self.layout.split(0.1)
+		split.label(text="Forward Key")
+		row = split.row()
+		row.prop(self, "Forward1")
+		row.operator("fpsfly.setkey", text="Set").key="forward1" 
+		row.prop(self, "Forward2")
+		row.operator("fpsfly.setkey", text="Set").key="forward2" 
+		row.prop(self, "Forward3")
+		row.operator("fpsfly.setkey", text="Set").key="forward3" 
+		split = self.layout.split(0.1)
+		split.label(text="Back Key")
+		row = split.row()
+		row.prop(self, "Back1")
+		row.operator("fpsfly.setkey", text="Set").key="back1" 
+		row.prop(self, "Back2")
+		row.operator("fpsfly.setkey", text="Set").key="back2" 
+		row.prop(self, "Back3")
+		row.operator("fpsfly.setkey", text="Set").key="back3" 
+		split = self.layout.split(0.1)
+		split.label(text="Up Key")
+		row = split.row()
+		row.prop(self, "Up1")
+		row.operator("fpsfly.setkey", text="Set").key="up1" 
+		row.prop(self, "Up2")
+		row.operator("fpsfly.setkey", text="Set").key="up2" 
+		row.prop(self, "Up3")
+		row.operator("fpsfly.setkey", text="Set").key="up3" 
+		split = self.layout.split(0.1)
+		split.label(text="Down Key")
+		row = split.row()
+		row.prop(self, "Down1")
+		row.operator("fpsfly.setkey", text="Set").key="down1" 
+		row.prop(self, "Down2")
+		row.operator("fpsfly.setkey", text="Set").key="down2" 
+		row.prop(self, "Down3")
+		row.operator("fpsfly.setkey", text="Set").key="down3" 
 
 
 
@@ -213,7 +432,7 @@ class FPSFlyStart(bpy.types.Operator):
 	
 	def invoke(self, context, event):
 	
-		global addonprefs
+		global addonprefs, oldkeyboard
 	
 		scn = bpy.context.scene
 
@@ -221,13 +440,17 @@ class FPSFlyStart(bpy.types.Operator):
 		
 		context.window_manager.modal_handler_add(self)
 		
-		return {'RUNNING_MODAL'}
+		oldkeyboard = addonprefs.Keyboard
+		bpy.app.handlers.scene_update_post.append(sceneupdate_handler)
+		
+		return {"RUNNING_MODAL"}
 
 	def modal(self, context, event):
 	
 		global navon, leftnav, rightnav, forwardnav, backnav, upnav, downnav
 		global movetimer, leave, msync, acton
 		global rv3d, region
+		
 		
 		scn = bpy.context.scene
 		
@@ -282,14 +505,14 @@ class FPSFlyStart(bpy.types.Operator):
 					scn.PreSelOff = 1
 					bpy.context.region.tag_redraw()
 					hidemouse()
-					return {'RUNNING_MODAL'}
+					return {"RUNNING_MODAL"}
 			if scn.Toggle and not(navon):
 				navon = 1
 				rv3d = bpy.context.space_data.region_3d
 				scn.PreSelOff = 1
 				bpy.context.region.tag_redraw()
 				hidemouse()
-				return {'RUNNING_MODAL'}
+				return {"RUNNING_MODAL"}
 			
 		if not(navon):
 			return {"PASS_THROUGH"}
@@ -311,7 +534,7 @@ class FPSFlyStart(bpy.types.Operator):
 		if not(rv3d.is_perspective):
 			navon = 0
 			scn.Toggle = 0
-			return {'RUNNING_MODAL'}
+			return {"RUNNING_MODAL"}
 		
 		off = 0
 		if event.type in ["F"]:
@@ -342,7 +565,7 @@ class FPSFlyStart(bpy.types.Operator):
 			upnav = 0
 			downnav = 0
 			acton = 0
-			return {'RUNNING_MODAL'}
+			return {"RUNNING_MODAL"}
 			
 		if event.type in ["WHEELUPMOUSE"]:
 			addonprefs.Speed *= 1.5
@@ -351,7 +574,7 @@ class FPSFlyStart(bpy.types.Operator):
 			if addonprefs.Speed == 0:
 				addonprefs.Speed = 2
 			
-		if event.type in ["RIGHTMOUSE"]:
+		if event.type in [addonprefs.Mouselook]:
 			if event.value == "PRESS" and addonprefs.ActPass:
 				acton = 1
 			else:
@@ -362,7 +585,7 @@ class FPSFlyStart(bpy.types.Operator):
 		if event.type in ["MOUSEMOVE", "LEFTMOUSE", "WHEELUPMOUSE", "WHEELDOWNMOUSE"]:
 			if event.type in ["MOUSEMOVE"]:
 				if mx == mxcenter and my == mycenter:
-					return {'RUNNING_MODAL'}
+					return {"RUNNING_MODAL"}
 				if sys.platform == "linux":
 					dll.XWarpPointer(Xdisplay, None, Xwindow, 0, 0, 0, 0, xcenter, ycenter)
 					dll.XSync(Xdisplay, True)
@@ -398,34 +621,34 @@ class FPSFlyStart(bpy.types.Operator):
 			if mx > regionui.x or my < regionui.y:
 				return {"PASS_THROUGH"}
 			else:
-				return {'RUNNING_MODAL'}
+				return {"RUNNING_MODAL"}
 			
-		if event.type in [lkey[addonprefs.Keyboard]]:
+		if event.type in [addonprefs.Left1, addonprefs.Left2, addonprefs.Left3]:
 			if event.value == "PRESS":
 				leftnav = 1
 			else:
 				leftnav = 0
-		elif event.type in [rkey[addonprefs.Keyboard]]:
+		elif event.type in [addonprefs.Right1, addonprefs.Right2, addonprefs.Right3]:
 			if event.value == "PRESS":
 				rightnav = 1
 			else:
 				rightnav = 0
-		elif event.type in [fkey[addonprefs.Keyboard]]:
+		elif event.type in [addonprefs.Forward1, addonprefs.Forward2, addonprefs.Forward3]:
 			if event.value == "PRESS":
 				forwardnav = 1
 			else:
 				forwardnav = 0
-		elif event.type in [bkey[addonprefs.Keyboard]]:
+		elif event.type in [addonprefs.Back1, addonprefs.Back2, addonprefs.Back3]:
 			if event.value == "PRESS":
 				backnav = 1
 			else:
 				backnav = 0
-		elif event.type in ukey[addonprefs.Keyboard]:
+		elif event.type in [addonprefs.Up1, addonprefs.Up2, addonprefs.Up3]:
 			if event.value == "PRESS":
 				upnav = 1
 			else:
 				upnav = 0
-		elif event.type in dkey[addonprefs.Keyboard]:
+		elif event.type in [addonprefs.Down1, addonprefs.Down2, addonprefs.Down3]:
 			if event.value == "PRESS":
 				downnav = 1
 			else:
@@ -433,7 +656,7 @@ class FPSFlyStart(bpy.types.Operator):
 				
 			
 
-		return {'RUNNING_MODAL'}
+		return {"RUNNING_MODAL"}
 
 	
 
@@ -442,7 +665,7 @@ def register():
 	global _handle, ready
 
 	bpy.utils.register_module(__name__)
-	_handle = bpy.types.SpaceView3D.draw_handler_add(redraw, (), 'WINDOW', 'POST_PIXEL')
+	_handle = bpy.types.SpaceView3D.draw_handler_add(redraw, (), "WINDOW", "POST_PIXEL")
 	bpy.app.handlers.load_post.append(loadpost_handler)
 	ready = 1
 
@@ -533,7 +756,55 @@ def redraw():
 		
 		rv3d.view_matrix = rv3d.view_matrix
 
+
+
 		
+def sceneupdate_handler(dummy):
+
+	global oldkeyboard
+
+	if not(addonprefs.Keyboard == oldkeyboard):
+		if addonprefs.Keyboard == "QWERTY":
+			addonprefs.Left1 = "A"
+			addonprefs.Left2 = "NOT SET"
+			addonprefs.Left3 = "NOT SET"
+			addonprefs.Right1 = "D"
+			addonprefs.Right2 = "NOT SET"
+			addonprefs.Right3 = "NOT SET"
+			addonprefs.Forward1 = "W"
+			addonprefs.Forward2 = "NOT SET"
+			addonprefs.Forward3 = "NOT SET"
+			addonprefs.Back1 = "S"
+			addonprefs.Back2 = "NOT SET"
+			addonprefs.Back3 = "NOT SET"
+			addonprefs.Up1 = "E"
+			addonprefs.Up2 = "SPACE"
+			addonprefs.Up3 = "NOT SET"
+			addonprefs.Down1 = "Q"
+			addonprefs.Down2 = "C"
+			addonprefs.Down3 = "X"
+		elif addonprefs.Keyboard == "AZERTY":
+			addonprefs.Left1 = "Q"
+			addonprefs.Left2 = "NOT SET"
+			addonprefs.Left3 = "NOT SET"
+			addonprefs.Right1 = "D"
+			addonprefs.Right2 = "NOT SET"
+			addonprefs.Right3 = "NOT SET"
+			addonprefs.Forward1 = "Z"
+			addonprefs.Forward2 = "NOT SET"
+			addonprefs.Forward3 = "NOT SET"
+			addonprefs.Back1 = "S"
+			addonprefs.Back2 = "NOT SET"
+			addonprefs.Back3 = "NOT SET"
+			addonprefs.Up1 = "E"
+			addonprefs.Up2 = "SPACE"
+			addonprefs.Up3 = "NOT SET"
+			addonprefs.Down1 = "A"
+			addonprefs.Down2 = "C"
+			addonprefs.Down3 = "X"
+		oldkeyboard = addonprefs.Keyboard
+
+
 @persistent
 def loadpost_handler(dummy):
 
