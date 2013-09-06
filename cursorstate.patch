@@ -1,0 +1,67 @@
+Index: source/blender/editors/space_view3d/space_view3d.c
+===================================================================
+--- source/blender/editors/space_view3d/space_view3d.c	(revision 59874)
++++ source/blender/editors/space_view3d/space_view3d.c	(working copy)
+@@ -901,6 +901,11 @@
+ static void view3d_main_area_cursor(wmWindow *win, ScrArea *UNUSED(sa), ARegion *UNUSED(ar))
+ {
+ 	Scene *scene = win->screen->scene;
++	
++	if (win->view3dcursorstate == 0) {
++		WM_cursor_set(win, CURSOR_NONE);
++		return;
++	}
+ 
+ 	if (scene->obedit) {
+ 		WM_cursor_set(win, CURSOR_EDIT);
+Index: source/blender/makesdna/DNA_windowmanager_types.h
+===================================================================
+--- source/blender/makesdna/DNA_windowmanager_types.h	(revision 59874)
++++ source/blender/makesdna/DNA_windowmanager_types.h	(working copy)
+@@ -182,6 +182,9 @@
+ 	short addmousemove;	/* internal: tag this for extra mousemove event, makes cursors/buttons active on UI switching */
+ 	short pad2;
+ 
++	int view3dcursorstate;  /* hides/shows the cursor in all 3d viewports */
++	int   pad4;
++	
+ 	struct wmEvent *eventstate;	/* storage for event system */
+ 	
+ 	struct wmSubWindow *curswin;	/* internal for wm_subwindow.c only */
+@@ -197,6 +200,7 @@
+ 	
+ 	ListBase subwindows;	/* opengl stuff for sub windows, see notes in wm_subwindow.c */
+ 	ListBase gesture;		/* gesture stuff */
++	
+ } wmWindow;
+ 
+ /* should be something like DNA_EXCLUDE 
+Index: source/blender/makesrna/intern/rna_wm.c
+===================================================================
+--- source/blender/makesrna/intern/rna_wm.c	(revision 59874)
++++ source/blender/makesrna/intern/rna_wm.c	(working copy)
+@@ -1735,6 +1735,10 @@
+ 	RNA_def_property_int_sdna(prop, NULL, "sizey");
+ 	RNA_def_property_clear_flag(prop, PROP_EDITABLE);
+ 	RNA_def_property_ui_text(prop, "Height", "Window height");
++
++	prop = RNA_def_property(srna, "view3d_cursor", PROP_INT, PROP_NONE);
++	RNA_def_property_int_sdna(prop, NULL, "view3dcursorstate");
++	RNA_def_property_ui_text(prop, "View3D Cursor State", "Hidden/shown state of mouse cursor in all 3D viewports");
+ }
+ 
+ /* curve.splines */
+Index: source/blender/windowmanager/intern/wm_window.c
+===================================================================
+--- source/blender/windowmanager/intern/wm_window.c	(revision 59874)
++++ source/blender/windowmanager/intern/wm_window.c	(working copy)
+@@ -494,6 +494,9 @@
+ 			WM_event_add_dropbox_handler(&win->handlers, lb);
+ 		}
+ 		wm_window_title(wm, win);
++		
++		/* set view3dcursor to show */
++		win->view3dcursorstate = 1;
+ 	}
+ }
+ 
