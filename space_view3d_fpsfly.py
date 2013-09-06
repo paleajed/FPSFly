@@ -64,28 +64,9 @@ from mathutils import *
 import math
 from bpy.app.handlers import persistent
 import sys
-from ctypes import *
-#from ctypes.wintypes import BOOL
-if sys.platform == "darwin":
-	from Quartz.CoreGraphics import CGEventCreateMouseEvent
-	from Quartz.CoreGraphics import CGEventPost
-	from Quartz.CoreGraphics import kCGEventMouseMoved
-	from Quartz.CoreGraphics import kCGMouseButtonLeft
-	from Quartz.CoreGraphics import kCGHIDEventTap
-	
-class Rect(Structure):
-	_fields_=[("left",c_long),("top",c_long),("right",c_long),("bottom",c_long)]
-Window = Rect()
 
-    
-class Color(Structure):
-	_fields_=[("pixel",c_ulong),("red",c_ushort),("green",c_ushort),("blue",c_ushort),("flags",c_char),("pad",c_char)]
-black = Color()
-black.red = 0
-black.green = 0
-black.blue = 0
-if sys.platform == "linux":
-	dll = cdll.LoadLibrary("libX11.so")
+
+black = Color((0, 0, 0))
 
 ready = 0
 started = 0
@@ -131,8 +112,6 @@ bpy.types.Scene.PreSelOff = bpy.props.BoolProperty(
 		name = "PreSelOff", 
 		description = "Switch off PreSel during FPS navigation mode",
 		default = False)
-
-
 
 
 class SetKey(bpy.types.Operator):
@@ -442,7 +421,7 @@ class FPSFlyStart(bpy.types.Operator):
 		
 		oldkeyboard = addonprefs.Keyboard
 		bpy.app.handlers.scene_update_post.append(sceneupdate_handler)
-		
+
 		return {"RUNNING_MODAL"}
 
 	def modal(self, context, event):
@@ -468,33 +447,10 @@ class FPSFlyStart(bpy.types.Operator):
 			global msync, xcenter, ycenter
 		
 			msync = 1
-			if sys.platform == "linux":
-				xcenter = 400
-				ycenter = 400
-				Xdisplay = dll.XOpenDisplay(None)
-				Xwindow = dll.XDefaultRootWindow(Xdisplay)
-				dll.XWarpPointer(Xdisplay, None, Xwindow, 0, 0, 0, 0, xcenter, ycenter)
-				dll.XSync(Xdisplay, True)
-				pyarr = [0,0,0,0,0,0,0,0]
-				arr = (c_int * len(pyarr))(*pyarr)
-				bitmap = dll.XCreateBitmapFromData(Xdisplay, Xwindow, arr, 8, 8)
-				invicursor = dll.XCreatePixmapCursor(Xdisplay, bitmap, bitmap, byref(black), byref(black), 0, 0)		
-				dll.XDefineCursor(Xdisplay, Xwindow, invicursor)
-				dll.XFreeCursor(Xdisplay, invicursor)
-				dll.XSync(Xdisplay, True)
-			elif sys.platform == "win32":
-				wind = windll.user32.GetActiveWindow()
-				windll.user32.GetWindowRect(wind, byref(Window))
-				xcenter = int(Window.left + region.x + region.width/2)
-				ycenter = int(Window.bottom - region.y - region.height/2)
-				print (xcenter, ycenter)
-				windll.user32.SetCursorPos(xcenter, ycenter)
-			elif sys.platform == "darwin":
-				xcenter = 400
-				ycenter = 400
-				mouseevent = CGEventCreateMouseEvent(None, kCGEventMouseMoved, (xcenter, ycenter), kCGMouseButtonLeft)
-				CGEventPost(kCGHIDEventTap, mouseevent)
-				
+			xcenter = 400
+			ycenter = 400
+			context.window.cursor_warp(xcenter, ycenter)
+
 		if not(navon):
 			if event.type in ["F"]:
 				if event.shift and event.ctrl and not(event.alt) and event.value == "PRESS":
@@ -541,17 +497,8 @@ class FPSFlyStart(bpy.types.Operator):
 			if event.shift and event.ctrl and not(event.alt) and event.value == "PRESS":
 				off = 1
 		if off or event.type in ["ESC"] or not(scn.Toggle):
-			if sys.platform == "linux":
-				dll.XWarpPointer(Xdisplay, None, Xwindow, 0, 0, 0, 0, xcenter, ycenter)
-				cursor = dll.XCreateFontCursor(Xdisplay, c_long(68))
-				dll.XDefineCursor(Xdisplay, Xwindow, cursor)
-				dll.XFreeCursor(Xdisplay, cursor)
-				dll.XCloseDisplay(Xdisplay)
-			elif sys.platform == "win32":
-				windll.user32.SetCursorPos(xcenter, ycenter)
-			elif sys.platform == "darwin":
-				mouseevent = CGEventCreateMouseEvent(None, kCGEventMouseMoved, (xcenter, ycenter), kCGMouseButtonLeft)
-				CGEventPost(kCGHIDEventTap, mouseevent)
+			context.window.cursor_warp(xcenter, ycenter)
+			context.window.cursor_modal_restore()
 
 			navon = 0
 			scn.Toggle = 0
@@ -586,14 +533,7 @@ class FPSFlyStart(bpy.types.Operator):
 			if event.type in ["MOUSEMOVE"]:
 				if mx == mxcenter and my == mycenter:
 					return {"RUNNING_MODAL"}
-				if sys.platform == "linux":
-					dll.XWarpPointer(Xdisplay, None, Xwindow, 0, 0, 0, 0, xcenter, ycenter)
-					dll.XSync(Xdisplay, True)
-				elif sys.platform == "win32":
-					windll.user32.SetCursorPos(xcenter, ycenter)
-				elif sys.platform == "darwin":
-					mouseevent = CGEventCreateMouseEvent(None, kCGEventMouseMoved, (xcenter, ycenter), kCGMouseButtonLeft)
-					CGEventPost(kCGHIDEventTap, mouseevent)
+				context.window.cursor_warp(xcenter, ycenter)
 			if acton and event.type in ["MOUSEMOVE"] and rv3d:
 				if addonprefs.YMirror:
 					ymult = -1
