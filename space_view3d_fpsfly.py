@@ -60,53 +60,15 @@ bl_info = {
 import bpy
 from bgl import *
 import blf
-from mathutils import *
+from mathutils import Vector, Matrix, Color
 import math
 from bpy.app.handlers import persistent
     
 
 ready = 0
 started = 0
-self.navon = 0
-leftnav = 0
-rightnav = 0
-forwardnav = 0
-backnav = 0
-upnav = 0
-downnav = 0
-self.acton = 0
-self.region = None
-self.rv3d = None
-lkey = {}
-rkey = {}
-fkey = {}
-bkey = {}
-ukey = {}
-dkey = {}
-lkey["QWERTY"] = "A"
-lkey["AZERTY"] = "Q"
-rkey["QWERTY"] = "D"
-rkey["AZERTY"] = "D"
-fkey["QWERTY"] = "W"
-fkey["AZERTY"] = "Z"
-bkey["QWERTY"] = "S"
-bkey["AZERTY"] = "S"
-ukey["QWERTY"] = ["E", "SPACE"]
-ukey["AZERTY"] = ["E", "SPACE"]
-dkey["QWERTY"] = ["Q", "C", "X"]
-dkey["AZERTY"] = ["A", "C", "X"]
 
 
-
-bpy.types.Scene.Toggle = bpy.props.BoolProperty(
-		name = "FPS flymode", 
-		description = "Turn on/off FPS navigation mode",
-		default = False)
-
-bpy.types.Scene.PreSelOff = bpy.props.BoolProperty(
-		name = "PreSelOff", 
-		description = "Switch off PreSel during FPS navigation mode",
-		default = False)
 
 
 
@@ -132,7 +94,7 @@ class SetKey(bpy.types.Operator):
 				isset = 1
 		
 		if isset:
-			bpy.context.self.region.tag_redraw()
+			context.region.tag_redraw()
 			return {"FINISHED"}
 		else:
 			return {"RUNNING_MODAL"}
@@ -142,11 +104,11 @@ class SetKey(bpy.types.Operator):
 class FPSFlyPanel(bpy.types.Panel):
 	bl_label = "FPSFly"
 	bl_space_type = "VIEW_3D"
-	bl_self.region_type = "UI"
+	bl_region_type = "UI"
 	
 	def draw(self, context):
 		
-		scn = bpy.context.scene
+		scn = context.scene
 		
 		self.layout.prop(scn, "Toggle")
 
@@ -358,38 +320,47 @@ class FPSFlyStart(bpy.types.Operator):
 	
 	def invoke(self, context, event):
 	
-		global addonprefs
+		global addonprefs, mainop
+		
+		mainop = self
 	
-		scn = bpy.context.scene
-
-		addonprefs = bpy.context.user_preferences.addons["space_view3d_fpsfly"].preferences
+		addonprefs = context.user_preferences.addons["space_view3d_fpsfly"].preferences
 		
 		context.window_manager.modal_handler_add(self)
 		
 		addonprefs.oldkeyboard = addonprefs.Keyboard
 		bpy.app.handlers.scene_update_post.append(sceneupdate_handler)
 		
+		self.navon = 0
+		self.acton = 0
+		self.region = None
+		self.rv3d = None
+		self.leftnav = 0
+		self.rightnav = 0
+		self.forwardnav = 0
+		self.backnav = 0
+		self.upnav = 0
+		self.downnav = 0
+		
 		return {"RUNNING_MODAL"}
 
 	def modal(self, context, event):
 	
-		global leftnav, rightnav, forwardnav, backnav, upnav, downnav		
-		
-		scn = bpy.context.scene
+		scn = context.scene
 				
 		def initnav():
 		
 			self.navon = 1
-			for self.region in bpy.context.area.self.regions:
+			for self.region in context.area.regions:
 				if self.region.type == "UI":
 					self.regionui = self.region
-			self.region = bpy.context.self.region
-			self.rv3d = bpy.context.space_data.self.region_3d
-			self.window = bpy.context.window
-			self.window.cursor_modal_set('NONE')
+			self.region = context.region
+			self.rv3d = context.space_data.region_3d
+			self.window = context.window
+			self.cursor_hide(context)
 			self.xcenter = int(self.region.x + self.region.width/2)
 			self.ycenter = int(self.region.y + self.region.height/2)
-			self.window.cursor_warp(self.xcenter, self.ycenter)
+			self.cursor_reset(context)
 			scn.PreSelOff = 1
 			self.region.tag_redraw()
 				
@@ -409,7 +380,6 @@ class FPSFlyStart(bpy.types.Operator):
 		
 		mx = event.mouse_x
 		my = event.mouse_y
-		self.rv3d = bpy.context.space_data.self.region_3d
 		if not(self.rv3d.is_perspective):
 			self.navon = 0
 			scn.Toggle = 0
@@ -420,18 +390,18 @@ class FPSFlyStart(bpy.types.Operator):
 			if event.shift and event.ctrl and not(event.alt) and event.value == "PRESS":
 				off = 1
 		if off or event.type in ["ESC"] or not(scn.Toggle):
-			self.window.cursor_modal_restore()
+			self.cursor_restore(context)
 			self.navon = 0
 			scn.Toggle = 0
 			self.regionui.tag_redraw()
 			self.region.tag_redraw()
 			scn.PreSelOff = 0
-			leftnav = 0
-			rightnav = 0
-			forwardnav = 0
-			backnav = 0
-			upnav = 0
-			downnav = 0
+			self.leftnav = 0
+			self.rightnav = 0
+			self.forwardnav = 0
+			self.backnav = 0
+			self.upnav = 0
+			self.downnav = 0
 			self.acton = 0
 			return {"RUNNING_MODAL"}
 			
@@ -454,7 +424,7 @@ class FPSFlyStart(bpy.types.Operator):
 			if event.type in ["MOUSEMOVE"]:
 				if mx == self.xcenter and my == self.ycenter:
 					return {"RUNNING_MODAL"}
-				self.window.cursor_warp(self.xcenter, self.ycenter)
+				self.cursor_reset(context)
 			if self.acton and event.type in ["MOUSEMOVE"] and self.rv3d:
 				if addonprefs.YMirror:
 					ymult = -1
@@ -486,44 +456,64 @@ class FPSFlyStart(bpy.types.Operator):
 			
 		if event.type in [addonprefs.left1, addonprefs.left2, addonprefs.left3]:
 			if event.value == "PRESS":
-				leftnav = 1
+				self.leftnav = 1
 			else:
-				leftnav = 0
+				self.leftnav = 0
 		elif event.type in [addonprefs.right1, addonprefs.right2, addonprefs.right3]:
 			if event.value == "PRESS":
-				rightnav = 1
+				self.rightnav = 1
 			else:
-				rightnav = 0
+				self.rightnav = 0
 		elif event.type in [addonprefs.forward1, addonprefs.forward2, addonprefs.forward3]:
 			if event.value == "PRESS":
-				forwardnav = 1
+				self.forwardnav = 1
 			else:
-				forwardnav = 0
+				self.forwardnav = 0
 		elif event.type in [addonprefs.back1, addonprefs.back2, addonprefs.back3]:
 			if event.value == "PRESS":
-				backnav = 1
+				self.backnav = 1
 			else:
-				backnav = 0
+				self.backnav = 0
 		elif event.type in [addonprefs.up1, addonprefs.up2, addonprefs.up3]:
 			if event.value == "PRESS":
-				upnav = 1
+				self.upnav = 1
 			else:
-				upnav = 0
+				self.upnav = 0
 		elif event.type in [addonprefs.down1, addonprefs.down2, addonprefs.down3]:
 			if event.value == "PRESS":
-				downnav = 1
+				self.downnav = 1
 			else:
-				downnav = 0
+				self.downnav = 0
 				
 			
 
 		return {"RUNNING_MODAL"}
 
 	
+	# utility functions
+	def cursor_reset(self, context):
+		context.window.cursor_warp(self.xcenter, self.ycenter)
+
+	def cursor_hide(self, context):
+		context.window.cursor_modal_set('NONE')
+
+	def cursor_restore(self, context):
+		context.window.cursor_modal_restore()
+
 
 def register():
 
 	global _handle, ready
+
+	bpy.types.Scene.Toggle = bpy.props.BoolProperty(
+			name = "FPS flymode", 
+			description = "Turn on/off FPS navigation mode",
+			default = False)
+	
+	bpy.types.Scene.PreSelOff = bpy.props.BoolProperty(
+			name = "PreSelOff", 
+			description = "Switch off PreSel during FPS navigation mode",
+			default = False)
 
 	bpy.utils.register_module(__name__)
 	_handle = bpy.types.SpaceView3D.draw_handler_add(redraw, (), "WINDOW", "POST_PIXEL")
@@ -532,6 +522,10 @@ def register():
 
 
 def unregister():
+
+	del bpy.types.Scene.Toggle
+	del bpy.types.Scene.PreSelOff
+
 	bpy.utils.unregister_module(__name__)
 
 
@@ -551,10 +545,10 @@ def redraw():
 			started = 1
 			bpy.ops.view3d.fpsfly("INVOKE_DEFAULT")
 			
-	if self.region and self.navon:
+	if mainop.region and mainop.navon:
 	
-		x = self.region.width / 2
-		y = self.region.height / 2
+		x = mainop.region.width / 2
+		y = mainop.region.height / 2
 		glBegin(GL_LINES)
 		glColor3f(0.7, 0, 0)
 		glVertex2f(x - 8, y)
@@ -566,55 +560,55 @@ def redraw():
 		glColor3f(1, 1, 0.7)
 		glMatrixMode(GL_PROJECTION)
 		glLoadIdentity()
-		gluOrtho2D(0, self.region.width, 0, self.region.height)
+		gluOrtho2D(0, mainop.region.width, 0, mainop.region.height)
 		glMatrixMode(GL_MODELVIEW)
 		glLoadIdentity()
-		blf.position(0, self.region.width/2 - 80, self.region.height - 20, 0)
+		blf.position(0, mainop.region.width/2 - 80, mainop.region.height - 20, 0)
 		blf.size(0, 15, 72)
 		blf.draw(0, "FPS navigation (ESC exits)")
 
 
 		divi = 200
 		def moveleft():
-			bfvec = Vector(self.rv3d.view_matrix[0][:3])
+			bfvec = Vector(mainop.rv3d.view_matrix[0][:3])
 			bfvec.length = addonprefs.Speed / divi
-			self.rv3d.view_location -= bfvec
+			mainop.rv3d.view_location -= bfvec
 		def moveright():
-			bfvec = Vector(self.rv3d.view_matrix[0][:3])
+			bfvec = Vector(mainop.rv3d.view_matrix[0][:3])
 			bfvec.length = addonprefs.Speed / divi
-			self.rv3d.view_location += bfvec
+			mainop.rv3d.view_location += bfvec
 		def moveforward():
-			bfvec = Vector(self.rv3d.view_matrix[2][:3])
+			bfvec = Vector(mainop.rv3d.view_matrix[2][:3])
 			bfvec.length = addonprefs.Speed / divi
-			self.rv3d.view_location -= bfvec
+			mainop.rv3d.view_location -= bfvec
 		def moveback():
-			bfvec = Vector(self.rv3d.view_matrix[2][:3])
+			bfvec = Vector(mainop.rv3d.view_matrix[2][:3])
 			bfvec.length = addonprefs.Speed / divi
-			self.rv3d.view_location += bfvec
+			mainop.rv3d.view_location += bfvec
 		def moveup():
 			bfvec = Vector((0, 0, 1))
 			bfvec.length = addonprefs.Speed / divi
-			self.rv3d.view_location += bfvec
+			mainop.rv3d.view_location += bfvec
 		def movedown():
 			bfvec = Vector((0, 0, 1))
 			bfvec.length = addonprefs.Speed / divi
-			self.rv3d.view_location -= bfvec
+			mainop.rv3d.view_location -= bfvec
 		
-		if leftnav:
+		if mainop.leftnav:
 			moveleft()
-		if rightnav:
+		if mainop.rightnav:
 			moveright()
-		if forwardnav:
+		if mainop.forwardnav:
 			moveforward()
-		if backnav:
+		if mainop.backnav:
 			moveback()
-		if upnav:
+		if mainop.upnav:
 			moveup()
-		if downnav:
+		if mainop.downnav:
 			movedown()
-		self.rv3d.update()
+		mainop.rv3d.update()
 		
-		self.rv3d.view_matrix = self.rv3d.view_matrix
+		mainop.rv3d.view_matrix = mainop.rv3d.view_matrix
 
 
 
