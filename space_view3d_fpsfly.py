@@ -60,7 +60,10 @@ bl_info = {
 import bpy
 from bgl import *
 import blf
-from mathutils import *
+from mathutils import (Vector,
+                       Matrix,
+                       Color,
+                       )
 import math
 from bpy.app.handlers import persistent
 import sys
@@ -99,18 +102,6 @@ ukey["QWERTY"] = ["E", "SPACE"]
 ukey["AZERTY"] = ["E", "SPACE"]
 dkey["QWERTY"] = ["Q", "C", "X"]
 dkey["AZERTY"] = ["A", "C", "X"]
-
-
-
-bpy.types.Scene.Toggle = bpy.props.BoolProperty(
-		name = "FPS flymode", 
-		description = "Turn on/off FPS navigation mode",
-		default = False)
-
-bpy.types.Scene.PreSelOff = bpy.props.BoolProperty(
-		name = "PreSelOff", 
-		description = "Switch off PreSel during FPS navigation mode",
-		default = False)
 
 
 class SetKey(bpy.types.Operator):
@@ -399,7 +390,7 @@ class FPSFlyStart(bpy.types.Operator):
 	
 		scn = context.scene
 
-		addonprefs = context.user_preferences.addons["space_view3d_fpsfly"].preferences
+		addonprefs = context.user_preferences.addons[__name__].preferences
 		
 		context.window_manager.modal_handler_add(self)
 		
@@ -582,6 +573,16 @@ def register():
 
 	global _handle, ready
 
+	bpy.types.Scene.Toggle = bpy.props.BoolProperty(
+			name = "FPS flymode",
+			description = "Turn on/off FPS navigation mode",
+			default = False)
+
+	bpy.types.Scene.PreSelOff = bpy.props.BoolProperty(
+			name = "PreSelOff",
+			description = "Switch off PreSel during FPS navigation mode",
+			default = False)
+
 	bpy.utils.register_module(__name__)
 	_handle = bpy.types.SpaceView3D.draw_handler_add(redraw, (), "WINDOW", "POST_PIXEL")
 	bpy.app.handlers.load_post.append(loadpost_handler)
@@ -589,14 +590,16 @@ def register():
 
 
 def unregister():
+
+	del bpy.types.Scene.Toggle
+	del bpy.types.Scene.PreSelOff
+
 	bpy.utils.unregister_module(__name__)
 
 
 if __name__ == "__main__":
 	register()
-	
-	
-	
+
 
 @persistent
 def redraw():
@@ -730,5 +733,3 @@ def loadpost_handler(dummy):
 
 	started = 0
 	ready = 1
-
-
