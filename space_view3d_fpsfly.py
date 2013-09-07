@@ -47,7 +47,7 @@ Mirror Y : opposite Y direction.
 bl_info = {
 	"name": "FPSFly",
 	"author": "Gert De Roost",
-	"version": (0, 6, 1),
+	"version": (0, 6, 2),
 	"blender": (2, 6, 8),
 	"location": "View3D > UI > FPSFly",
 	"description": "FPS viewport navigation",
@@ -82,11 +82,11 @@ class SetKey(bpy.types.Operator):
 
 	def modal(self, context, event):
 	
-		isset = 0
+		isset = False
 		if not(event.type in {'MOUSEMOVE', 'INBETWEEN_MOUSEMOVE', 'TIMER', 'NONE'}):
 			if event.value == 'PRESS':
 				setattr(addonprefs, self.key, event.type)
-				isset = 1
+				isset = True
 		
 		if isset:
 			context.region.tag_redraw()
@@ -324,14 +324,13 @@ class FPSFlyStart(bpy.types.Operator):
 		addonprefs.oldkeyboard = addonprefs.Keyboard
 		bpy.app.handlers.scene_update_post.append(sceneupdate_handler)
 		
-		self.navon = 0
-		self.acton = 0
-		self.leftnav = 0
-		self.rightnav = 0
-		self.forwardnav = 0
-		self.backnav = 0
-		self.upnav = 0
-		self.downnav = 0
+		self.acton = False
+		self.leftnav = False
+		self.rightnav = False
+		self.forwardnav = False
+		self.backnav = False
+		self.upnav = False
+		self.downnav = False
 		
 		self._handle = bpy.types.SpaceView3D.draw_handler_add(redraw, (), "WINDOW", "POST_PIXEL")
 
@@ -345,7 +344,7 @@ class FPSFlyStart(bpy.types.Operator):
 		self.xcenter = int(self.region.x + self.region.width/2)
 		self.ycenter = int(self.region.y + self.region.height/2)
 		self.cursor_reset(context)
-		context.scene.PreSelOff = 1
+		context.scene.PreSelOff = rue
 		self.region.tag_redraw()
 				
 		return {'RUNNING_MODAL'}
@@ -356,15 +355,15 @@ class FPSFlyStart(bpy.types.Operator):
 		mx = event.mouse_x
 		my = event.mouse_y
 		
-		off = 0
+		off = False
 		if event.type == 'F':
 			if event.shift and event.ctrl and not(event.alt) and event.value == 'PRESS':
-				off = 1
+				off = True
 		if off or event.type == 'ESC' or not(self.rv3d.is_perspective):
 			self.cursor_restore(context)
 			self.regionui.tag_redraw()
 			self.region.tag_redraw()
-			context.scene.PreSelOff = 0
+			context.scene.PreSelOff = False
 			bpy.types.SpaceView3D.draw_handler_remove(self._handle, 'WINDOW')
 			return {'FINISHED'}
 			
@@ -377,11 +376,11 @@ class FPSFlyStart(bpy.types.Operator):
 			
 		if event.type == addonprefs.mouselook:
 			if event.value == 'PRESS' and addonprefs.ActPass:
-				self.acton = 1
+				self.acton = True
 			else:
-				self.acton = 0
-		if addonprefs.ActPass == 0:
-			self.acton = 1
+				self.acton = False
+		if addonprefs.ActPass == False:
+			self.acton = True
 				
 		if event.type in {'MOUSEMOVE', 'LEFTMOUSE', 'WHEELUPMOUSE', 'WHEELDOWNMOUSE'}:
 			if event.type == 'MOUSEMOVE':
@@ -419,35 +418,35 @@ class FPSFlyStart(bpy.types.Operator):
 			
 		if event.type in {addonprefs.left1, addonprefs.left2, addonprefs.left3}:
 			if event.value == 'PRESS':
-				self.leftnav = 1
+				self.leftnav = True
 				print ("left")
 			else:
-				self.leftnav = 0
+				self.leftnav = False
 		elif event.type in {addonprefs.right1, addonprefs.right2, addonprefs.right3}:
 			if event.value == 'PRESS':
-				self.rightnav = 1
+				self.rightnav = True
 			else:
-				self.rightnav = 0
+				self.rightnav = False
 		elif event.type in {addonprefs.forward1, addonprefs.forward2, addonprefs.forward3}:
 			if event.value == 'PRESS':
-				self.forwardnav = 1
+				self.forwardnav = True
 			else:
-				self.forwardnav = 0
+				self.forwardnav = False
 		elif event.type in {addonprefs.back1, addonprefs.back2, addonprefs.back3}:
 			if event.value == 'PRESS':
-				self.backnav = 1
+				self.backnav = True
 			else:
-				self.backnav = 0
+				self.backnav = False
 		elif event.type in {addonprefs.up1, addonprefs.up2, addonprefs.up3}:
 			if event.value == 'PRESS':
-				self.upnav = 1
+				self.upnav = True
 			else:
-				self.upnav = 0
+				self.upnav = False
 		elif event.type in {addonprefs.down1, addonprefs.down2, addonprefs.down3}:
 			if event.value == 'PRESS':
-				self.downnav = 1
+				self.downnav = True
 			else:
-				self.downnav = 0
+				self.downnav = False
 					
 
 		return {'RUNNING_MODAL'}
