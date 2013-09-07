@@ -83,21 +83,21 @@ class SetKey(bpy.types.Operator):
 	
 		context.window_manager.modal_handler_add(self)
 		
-		return {"RUNNING_MODAL"}
+		return {'RUNNING_MODAL'}
 
 	def modal(self, context, event):
 	
-		isset = 0
-		if not(event.type in ["MOUSEMOVE", "INBETWEEN_MOUSEMOVE", "TIMER", "NONE"]):
-			if event.value == "PRESS":
+		isset = False
+		if event.type not in {"MOUSEMOVE", "INBETWEEN_MOUSEMOVE", "TIMER", "NONE"}:
+			if event.value == 'PRESS':
 				setattr(addonprefs, self.key, event.type)
-				isset = 1
-		
+				isset = True
+
 		if isset:
 			context.region.tag_redraw()
 			return {"FINISHED"}
 		else:
-			return {"RUNNING_MODAL"}
+			return {'RUNNING_MODAL'}
 
 
 
@@ -342,7 +342,7 @@ class FPSFlyStart(bpy.types.Operator):
 		self.upnav = 0
 		self.downnav = 0
 		
-		return {"RUNNING_MODAL"}
+		return {'RUNNING_MODAL'}
 
 	def modal(self, context, event):
 	
@@ -365,15 +365,15 @@ class FPSFlyStart(bpy.types.Operator):
 			self.region.tag_redraw()
 				
 		if not(self.navon):
-			if event.type in ["F"]:
-				if event.shift and event.ctrl and not(event.alt) and event.value == "PRESS":
+			if event.type == 'F':
+				if event.shift and event.ctrl and not(event.alt) and event.value == 'PRESS':
 					initnav()
 					scn.Toggle = 1
 					self.regionui.tag_redraw()
-					return {"RUNNING_MODAL"}
+					return {'RUNNING_MODAL'}
 			if scn.Toggle and not(self.navon):
 				initnav()
-				return {"RUNNING_MODAL"}
+				return {'RUNNING_MODAL'}
 			
 		if not(self.navon):
 			return {"PASS_THROUGH"}
@@ -383,13 +383,13 @@ class FPSFlyStart(bpy.types.Operator):
 		if not(self.rv3d.is_perspective):
 			self.navon = 0
 			scn.Toggle = 0
-			return {"RUNNING_MODAL"}
+			return {'RUNNING_MODAL'}
 		
 		off = 0
-		if event.type in ["F"]:
-			if event.shift and event.ctrl and not(event.alt) and event.value == "PRESS":
+		if event.type == 'F':
+			if event.shift and event.ctrl and not(event.alt) and event.value == 'PRESS':
 				off = 1
-		if off or event.type in ["ESC"] or not(scn.Toggle):
+		if off or event.type == 'ESC' or not(scn.Toggle):
 			self.cursor_restore(context)
 			self.navon = 0
 			scn.Toggle = 0
@@ -403,38 +403,38 @@ class FPSFlyStart(bpy.types.Operator):
 			self.upnav = 0
 			self.downnav = 0
 			self.acton = 0
-			return {"RUNNING_MODAL"}
+			return {'RUNNING_MODAL'}
 			
-		if event.type in ["WHEELUPMOUSE"]:
+		if event.type == 'WHEELUPMOUSE':
 			addonprefs.Speed *= 1.5
-		if event.type in ["WHEELDOWNMOUSE"]:
+		if event.type == 'WHEELDOWNMOUSE':
 			addonprefs.Speed *= 0.8
 			if addonprefs.Speed == 0:
 				addonprefs.Speed = 2
 			
-		if event.type in [addonprefs.mouselook]:
-			if event.value == "PRESS" and addonprefs.ActPass:
+		if event.type == addonprefs.mouselook:
+			if event.value == 'PRESS' and addonprefs.ActPass:
 				self.acton = 1
 			else:
 				self.acton = 0
 		if addonprefs.ActPass == 0:
 			self.acton = 1
 				
-		if event.type in ["MOUSEMOVE", "LEFTMOUSE", "WHEELUPMOUSE", "WHEELDOWNMOUSE"]:
-			if event.type in ["MOUSEMOVE"]:
+		if event.type in {'MOUSEMOVE', 'LEFTMOUSE', 'WHEELUPMOUSE', 'WHEELDOWNMOUSE'}:
+			if event.type == 'MOUSEMOVE':
 				if mx == self.xcenter and my == self.ycenter:
-					return {"RUNNING_MODAL"}
+					return {'RUNNING_MODAL'}
 				self.cursor_reset(context)
-			if self.acton and event.type in ["MOUSEMOVE"] and self.rv3d:
+			if self.acton and event.type == 'MOUSEMOVE' and self.rv3d:
 				if addonprefs.YMirror:
 					ymult = -1
 				else:
 					ymult = 1
-				smult = (addonprefs.MSens / 10) + 0.1
+				smult = (addonprefs.MSens / 10.0) + 0.1
 				dx = mx - self.xcenter
 				dy = my - self.ycenter
 				cmat = self.rv3d.view_matrix.inverted()
-				dxmat = Matrix.Rotation(math.radians(-dx*smult / 5), 3, "Z")
+				dxmat = Matrix.Rotation(math.radians(-dx * smult / 5.0), 3, 'Z')
 				cmat3 = cmat.copy().to_3x3()
 				cmat3.rotate(dxmat)
 				cmat4 = cmat3.to_4x4()
@@ -442,7 +442,7 @@ class FPSFlyStart(bpy.types.Operator):
 				self.rv3d.view_matrix = cmat4.inverted()
 				self.rv3d.update()
 				cmat = self.rv3d.view_matrix.inverted()
-				dymat = Matrix.Rotation(math.radians(dy*ymult*smult / 5), 3, self.rv3d.view_matrix[0][:3])
+				dymat = Matrix.Rotation(math.radians(dy * ymult * smult / 5.0), 3, self.rv3d.view_matrix[0][:3])
 				cmat3 = cmat.copy().to_3x3()
 				cmat3.rotate(dymat)
 				cmat4 = cmat3.to_4x4()
@@ -450,44 +450,44 @@ class FPSFlyStart(bpy.types.Operator):
 				self.rv3d.view_matrix = cmat4.inverted()
 				self.rv3d.update()
 			if mx > self.regionui.x or my < self.regionui.y:
-				return {"PASS_THROUGH"}
+				return {'PASS_THROUGH'}
 			else:
-				return {"RUNNING_MODAL"}
+				return {'RUNNING_MODAL'}
 			
-		if event.type in [addonprefs.left1, addonprefs.left2, addonprefs.left3]:
-			if event.value == "PRESS":
+		if event.type in {addonprefs.left1, addonprefs.left2, addonprefs.left3}:
+			if event.value == 'PRESS':
 				self.leftnav = 1
 			else:
 				self.leftnav = 0
-		elif event.type in [addonprefs.right1, addonprefs.right2, addonprefs.right3]:
-			if event.value == "PRESS":
+		elif event.type in {addonprefs.right1, addonprefs.right2, addonprefs.right3}:
+			if event.value == 'PRESS':
 				self.rightnav = 1
 			else:
 				self.rightnav = 0
-		elif event.type in [addonprefs.forward1, addonprefs.forward2, addonprefs.forward3]:
-			if event.value == "PRESS":
+		elif event.type in {addonprefs.forward1, addonprefs.forward2, addonprefs.forward3}:
+			if event.value == 'PRESS':
 				self.forwardnav = 1
 			else:
 				self.forwardnav = 0
-		elif event.type in [addonprefs.back1, addonprefs.back2, addonprefs.back3]:
-			if event.value == "PRESS":
+		elif event.type in {addonprefs.back1, addonprefs.back2, addonprefs.back3}:
+			if event.value == 'PRESS':
 				self.backnav = 1
 			else:
 				self.backnav = 0
-		elif event.type in [addonprefs.up1, addonprefs.up2, addonprefs.up3]:
-			if event.value == "PRESS":
+		elif event.type in {addonprefs.up1, addonprefs.up2, addonprefs.up3}:
+			if event.value == 'PRESS':
 				self.upnav = 1
 			else:
 				self.upnav = 0
-		elif event.type in [addonprefs.down1, addonprefs.down2, addonprefs.down3]:
-			if event.value == "PRESS":
+		elif event.type in {addonprefs.down1, addonprefs.down2, addonprefs.down3}:
+			if event.value == 'PRESS':
 				self.downnav = 1
 			else:
 				self.downnav = 0
 				
 			
 
-		return {"RUNNING_MODAL"}
+		return {'RUNNING_MODAL'}
 
 	
 	# utility functions
