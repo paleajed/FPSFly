@@ -171,7 +171,7 @@ class SetKey(bpy.types.Operator):
 				isset = 1
 		
 		if isset:
-			bpy.context.region.tag_redraw()
+			context.region.tag_redraw()
 			return {"FINISHED"}
 		else:
 			return {"RUNNING_MODAL"}
@@ -184,7 +184,7 @@ class FPSFlyPanel(bpy.types.Panel):
 	
 	def draw(self, context):
 		
-		scn = bpy.context.scene
+		scn = context.scene
 		
 		self.layout.prop(scn, "Toggle")
 
@@ -397,9 +397,9 @@ class FPSFlyStart(bpy.types.Operator):
 	
 		global addonprefs, oldkeyboard
 	
-		scn = bpy.context.scene
+		scn = context.scene
 
-		addonprefs = bpy.context.user_preferences.addons["space_view3d_fpsfly"].preferences
+		addonprefs = context.user_preferences.addons["space_view3d_fpsfly"].preferences
 		
 		context.window_manager.modal_handler_add(self)
 		
@@ -419,9 +419,9 @@ class FPSFlyStart(bpy.types.Operator):
 		global rv3d, region
 		
 		
-		scn = bpy.context.scene
+		scn = context.scene
 		
-		for region in bpy.context.area.regions:
+		for region in context.area.regions:
 			if region.type == "UI":
 				regionui = region
 
@@ -431,16 +431,16 @@ class FPSFlyStart(bpy.types.Operator):
 					navon = 1
 					scn.Toggle = 1
 					regionui.tag_redraw()
-					rv3d = bpy.context.space_data.region_3d
+					rv3d = context.space_data.region_3d
 					scn.PreSelOff = 1
-					bpy.context.region.tag_redraw()
+					context.region.tag_redraw()
 					self.cursor_hide(context)
 					return {"RUNNING_MODAL"}
 			if scn.Toggle and not(navon):
 				navon = 1
-				rv3d = bpy.context.space_data.region_3d
+				rv3d = context.space_data.region_3d
 				scn.PreSelOff = 1
-				bpy.context.region.tag_redraw()
+				context.region.tag_redraw()
 				self.cursor_hide(context)
 				return {"RUNNING_MODAL"}
 			
@@ -449,7 +449,7 @@ class FPSFlyStart(bpy.types.Operator):
 		
 		mx = event.mouse_x
 		my = event.mouse_y
-		for a in bpy.context.screen.areas:
+		for a in context.screen.areas:
 			if not(a.type == "VIEW_3D"):
 				continue
 			for r in a.regions:
