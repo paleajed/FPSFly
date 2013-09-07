@@ -78,7 +78,6 @@ backnav = 0
 upnav = 0
 downnav = 0
 leave = 0
-msync = 0
 acton = 0
 region = None
 rv3d = None
@@ -176,21 +175,6 @@ class SetKey(bpy.types.Operator):
 			return {"FINISHED"}
 		else:
 			return {"RUNNING_MODAL"}
-
-
-
-class SimpleMouseOperator(bpy.types.Operator):
-	bl_idname = "wm.fps_mouse_position"
-	bl_label = "Invoke Mouse Operator"
-
-	def invoke(self, context, event):
-
-		global mxcenter, mycenter
-
-		mxcenter = event.mouse_x
-		mycenter = event.mouse_y
-		
-		return {"FINISHED"}
 
 
 class FPSFlyPanel(bpy.types.Panel):
@@ -408,7 +392,7 @@ class FPSFlyStart(bpy.types.Operator):
 	bl_label = "Start FPSFly"
 	bl_description = "FPS viewport navigation"
 	bl_options = {"REGISTER"}
-	
+
 	def invoke(self, context, event):
 	
 		global addonprefs, oldkeyboard
@@ -422,12 +406,16 @@ class FPSFlyStart(bpy.types.Operator):
 		oldkeyboard = addonprefs.Keyboard
 		bpy.app.handlers.scene_update_post.append(sceneupdate_handler)
 
+		# initial state
+		self.mouse_x_orig = event.mouse_x
+		self.mouse_y_orig = event.mouse_y
+
 		return {"RUNNING_MODAL"}
 
 	def modal(self, context, event):
 	
 		global navon, leftnav, rightnav, forwardnav, backnav, upnav, downnav
-		global movetimer, leave, msync, acton
+		global movetimer, leave, acton
 		global rv3d, region
 		
 		
@@ -436,20 +424,6 @@ class FPSFlyStart(bpy.types.Operator):
 		for region in bpy.context.area.regions:
 			if region.type == "UI":
 				regionui = region
-				
-		if msync:
-			msync = 0
-			bpy.ops.wm.fps_mouse_position("INVOKE_DEFAULT")
-			
-		def hidemouse():
-		
-			global Xdisplay, Xwindow, prevcursor, bitmap
-			global msync, xcenter, ycenter
-		
-			msync = 1
-			xcenter = 400
-			ycenter = 400
-			context.window.cursor_warp(xcenter, ycenter)
 
 		if not(navon):
 			if event.type in ["F"]:
@@ -460,14 +434,14 @@ class FPSFlyStart(bpy.types.Operator):
 					rv3d = bpy.context.space_data.region_3d
 					scn.PreSelOff = 1
 					bpy.context.region.tag_redraw()
-					hidemouse()
+					self.cursor_hide(context)
 					return {"RUNNING_MODAL"}
 			if scn.Toggle and not(navon):
 				navon = 1
 				rv3d = bpy.context.space_data.region_3d
 				scn.PreSelOff = 1
 				bpy.context.region.tag_redraw()
-				hidemouse()
+				self.cursor_hide(context)
 				return {"RUNNING_MODAL"}
 			
 		if not(navon):
@@ -497,8 +471,8 @@ class FPSFlyStart(bpy.types.Operator):
 			if event.shift and event.ctrl and not(event.alt) and event.value == "PRESS":
 				off = 1
 		if off or event.type in ["ESC"] or not(scn.Toggle):
-			context.window.cursor_warp(xcenter, ycenter)
-			context.window.cursor_modal_restore()
+			self.cursor_reset(context)
+			self.cursor_restore(context)
 
 			navon = 0
 			scn.Toggle = 0
@@ -531,17 +505,15 @@ class FPSFlyStart(bpy.types.Operator):
 				
 		if event.type in ["MOUSEMOVE", "LEFTMOUSE", "WHEELUPMOUSE", "WHEELDOWNMOUSE"]:
 			if event.type in ["MOUSEMOVE"]:
-				if mx == mxcenter and my == mycenter:
-					return {"RUNNING_MODAL"}
-				context.window.cursor_warp(xcenter, ycenter)
+				context.window.cursor_warp(self.mouse_x_orig, self.mouse_y_orig)
 			if acton and event.type in ["MOUSEMOVE"] and rv3d:
 				if addonprefs.YMirror:
 					ymult = -1
 				else:
 					ymult = 1
 				smult = (addonprefs.MSens / 10) + 0.1
-				dx = mx - mxcenter
-				dy = my - mycenter
+				dx = mx - self.mouse_x_orig
+				dy = my - self.mouse_y_orig
 				cmat = rv3d.view_matrix.inverted()
 				dxmat = Matrix.Rotation(math.radians(-dx*smult / 5), 3, "Z")
 				cmat3 = cmat.copy().to_3x3()
@@ -593,12 +565,18 @@ class FPSFlyStart(bpy.types.Operator):
 				downnav = 1
 			else:
 				downnav = 0
-				
-			
 
 		return {"RUNNING_MODAL"}
 
-	
+	# utility functions
+	def cursor_reset(self, context):
+		context.window.cursor_warp(self.mouse_x_orig, self.mouse_y_orig)
+
+	def cursor_hide(self, context):
+		context.window.cursor_modal_set('NONE')
+
+	def cursor_restore(self, context):
+		context.window.cursor_modal_restore()
 
 def register():
 
