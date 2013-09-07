@@ -29,7 +29,7 @@ Press CTRL+SHIFT+F to enter navigation mode.  Click CTRL+SHIFT+F again or ESC to
 Also in N-panel is an on/off toggle.  Works in EditMode and Object Mode.
 Use WASD (or ZQSD on Azerty) during navigation to move left/right forward/backward and mouse to look in
 a certain direction (default RIGHTMOUSE needs to be kept pressed to do mouselook.
-Also added EQ/EA for moving up/down.  Update: now also X and V for down and SPACEBAR for up.
+Also added EQ/EA for moving up/down.  update: now also X and V for down and SPACEBAR for up.
 Use mousewheel to adjust speed.
 
 Only works in perspective mode!
@@ -47,7 +47,7 @@ Mirror Y : opposite Y direction.
 bl_info = {
 	"name": "FPSFly",
 	"author": "Gert De Roost",
-	"version": (0, 4, 0),
+	"version": (0, 5, 0),
 	"blender": (2, 6, 8),
 	"location": "View3D > UI > FPSFly",
 	"description": "FPS viewport navigation",
@@ -63,44 +63,20 @@ import blf
 from mathutils import *
 import math
 from bpy.app.handlers import persistent
-import sys
-from ctypes import *
-#from ctypes.wintypes import BOOL
-if sys.platform == "darwin":
-	from Quartz.CoreGraphics import CGEventCreateMouseEvent
-	from Quartz.CoreGraphics import CGEventPost
-	from Quartz.CoreGraphics import kCGEventMouseMoved
-	from Quartz.CoreGraphics import kCGMouseButtonLeft
-	from Quartz.CoreGraphics import kCGHIDEventTap
-	
-class Rect(Structure):
-	_fields_=[("left",c_long),("top",c_long),("right",c_long),("bottom",c_long)]
-Window = Rect()
-
     
-class Color(Structure):
-	_fields_=[("pixel",c_ulong),("red",c_ushort),("green",c_ushort),("blue",c_ushort),("flags",c_char),("pad",c_char)]
-black = Color()
-black.red = 0
-black.green = 0
-black.blue = 0
-if sys.platform == "linux":
-	dll = cdll.LoadLibrary("libX11.so")
 
 ready = 0
 started = 0
-navon = 0
+self.navon = 0
 leftnav = 0
 rightnav = 0
 forwardnav = 0
 backnav = 0
 upnav = 0
 downnav = 0
-leave = 0
-msync = 0
-acton = 0
-region = None
-rv3d = None
+self.acton = 0
+self.region = None
+self.rv3d = None
 lkey = {}
 rkey = {}
 fkey = {}
@@ -152,72 +128,21 @@ class SetKey(bpy.types.Operator):
 		isset = 0
 		if not(event.type in ["MOUSEMOVE", "INBETWEEN_MOUSEMOVE", "TIMER", "NONE"]):
 			if event.value == "PRESS":
-				if self.key == "mouselook":
-					addonprefs.Mouselook = event.type
-				if self.key == "left1":
-					addonprefs.Left1 = event.type
-				if self.key == "left2":
-					addonprefs.Left2 = event.type
-				if self.key == "left3":
-					addonprefs.Left3 = event.type
-				if self.key == "right1":
-					addonprefs.Right1 = event.type
-				if self.key == "right2":
-					addonprefs.Right2 = event.type
-				if self.key == "right3":
-					addonprefs.Right3 = event.type
-				if self.key == "forward1":
-					addonprefs.Forward1 = event.type
-				if self.key == "forward2":
-					addonprefs.Forward2 = event.type
-				if self.key == "forward3":
-					addonprefs.Forward3 = event.type
-				if self.key == "back1":
-					addonprefs.Back1 = event.type
-				if self.key == "back2":
-					addonprefs.Back2 = event.type
-				if self.key == "back3":
-					addonprefs.Back3 = event.type
-				if self.key == "up1":
-					addonprefs.Up1 = event.type
-				if self.key == "up2":
-					addonprefs.Up2 = event.type
-				if self.key == "up3":
-					addonprefs.Up3 = event.type
-				if self.key == "down1":
-					addonprefs.Down1 = event.type
-				if self.key == "down2":
-					addonprefs.Down2 = event.type
-				if self.key == "down3":
-					addonprefs.Down3 = event.type
+				setattr(addonprefs, self.key, event.type)
 				isset = 1
 		
 		if isset:
-			bpy.context.region.tag_redraw()
+			bpy.context.self.region.tag_redraw()
 			return {"FINISHED"}
 		else:
 			return {"RUNNING_MODAL"}
 
 
 
-class SimpleMouseOperator(bpy.types.Operator):
-	bl_idname = "wm.fps_mouse_position"
-	bl_label = "Invoke Mouse Operator"
-
-	def invoke(self, context, event):
-
-		global mxcenter, mycenter
-
-		mxcenter = event.mouse_x
-		mycenter = event.mouse_y
-		
-		return {"FINISHED"}
-
-
 class FPSFlyPanel(bpy.types.Panel):
 	bl_label = "FPSFly"
 	bl_space_type = "VIEW_3D"
-	bl_region_type = "UI"
+	bl_self.region_type = "UI"
 	
 	def draw(self, context):
 		
@@ -230,98 +155,99 @@ class FPSFlyAddonPreferences(bpy.types.AddonPreferences):
 
 	bl_idname = "space_view3d_fpsfly"
 	
+	oldkeyboard = None
 	
-	Mouselook = bpy.props.StringProperty(
-			name = "Mouselook Button/Key", 
+	mouselook = bpy.props.StringProperty(
+			name = "mouselook Button/Key", 
 			description = "Key binding for mouselook",
 			default = "RIGHTMOUSE")
 
-	Left1 = bpy.props.StringProperty(
+	left1 = bpy.props.StringProperty(
 			name = "", 
 			description = "Key binding 1 for strafing left",
 			default = "A")
 
-	Left2 = bpy.props.StringProperty(
+	left2 = bpy.props.StringProperty(
 			name = "", 
 			description = "Key binding 2 for strafing left",
 			default = "NOT SET")
 
-	Left3 = bpy.props.StringProperty(
+	left3 = bpy.props.StringProperty(
 			name = "", 
 			description = "Key binding 3 for strafing left",
 			default = "NOT SET")
 
-	Right1 = bpy.props.StringProperty(
+	right1 = bpy.props.StringProperty(
 			name = "", 
 			description = "Key binding 1 for strafing right",
 			default = "D")
 
-	Right2 = bpy.props.StringProperty(
+	right2 = bpy.props.StringProperty(
 			name = "", 
 			description = "Key binding 2 for strafing right",
 			default = "NOT SET")
 
-	Right3 = bpy.props.StringProperty(
+	right3 = bpy.props.StringProperty(
 			name = "", 
 			description = "Key binding 3 for strafing right",
 			default = "NOT SET")
 
-	Forward1 = bpy.props.StringProperty(
+	forward1 = bpy.props.StringProperty(
 			name = "", 
 			description = "Key binding 1 for moving forward",
 			default = "W")
 
-	Forward2 = bpy.props.StringProperty(
+	forward2 = bpy.props.StringProperty(
 			name = "", 
 			description = "Key binding 2 for moving forward",
 			default = "NOT SET")
 
-	Forward3 = bpy.props.StringProperty(
+	forward3 = bpy.props.StringProperty(
 			name = "", 
 			description = "Key binding 3 for moving forward",
 			default = "NOT SET")
 
-	Back1 = bpy.props.StringProperty(
+	back1 = bpy.props.StringProperty(
 			name = "", 
 			description = "Key binding 1 for moving back",
 			default = "S")
 
-	Back2 = bpy.props.StringProperty(
+	back2 = bpy.props.StringProperty(
 			name = "", 
 			description = "Key binding 2 for moving back",
 			default = "NOT SET")
 
-	Back3 = bpy.props.StringProperty(
+	back3 = bpy.props.StringProperty(
 			name = "", 
 			description = "Key binding 3 for moving back",
 			default = "NOT SET")
 
-	Up1 = bpy.props.StringProperty(
+	up1 = bpy.props.StringProperty(
 			name = "", 
 			description = "Key binding 1 for moving up",
 			default = "E")
 
-	Up2 = bpy.props.StringProperty(
+	up2 = bpy.props.StringProperty(
 			name = "", 
 			description = "Key binding 2 for moving up",
 			default = "SPACE")
 
-	Up3 = bpy.props.StringProperty(
+	up3 = bpy.props.StringProperty(
 			name = "", 
 			description = "Key binding 3 for moving up",
 			default = "NOT SET")
 
-	Down1 = bpy.props.StringProperty(
+	down1 = bpy.props.StringProperty(
 			name = "", 
 			description = "Key binding 1 for moving down",
 			default = "Q")
 
-	Down2 = bpy.props.StringProperty(
+	down2 = bpy.props.StringProperty(
 			name = "", 
 			description = "Key binding 2 for moving down",
 			default = "C")
 
-	Down3 = bpy.props.StringProperty(
+	down3 = bpy.props.StringProperty(
 			name = "", 
 			description = "Key binding 3 for moving down",
 			default = "X")
@@ -365,61 +291,61 @@ class FPSFlyAddonPreferences(bpy.types.AddonPreferences):
 		self.layout.prop(self, "YMirror")
 		self.layout.label(text="Key Bindings:")
 		row = self.layout.row()
-		row.prop(self, "Mouselook")
+		row.prop(self, "mouselook")
 		row.operator("fpsfly.setkey", text="Set").key="mouselook" 		
 		split = self.layout.split(0.1)
-		split.label(text="Left Key")
+		split.label(text="left Key")
 		row = split.row()
-		row.prop(self, "Left1")
+		row.prop(self, "left1")
 		row.operator("fpsfly.setkey", text="Set").key="left1" 
-		row.prop(self, "Left2")
+		row.prop(self, "left2")
 		row.operator("fpsfly.setkey", text="Set").key="left2" 
-		row.prop(self, "Left3")
+		row.prop(self, "left3")
 		row.operator("fpsfly.setkey", text="Set").key="left3" 
 		split = self.layout.split(0.1)
-		split.label(text="Right Key")
+		split.label(text="right Key")
 		row = split.row()
-		row.prop(self, "Right1")
+		row.prop(self, "right1")
 		row.operator("fpsfly.setkey", text="Set").key="right1" 
-		row.prop(self, "Right2")
+		row.prop(self, "right2")
 		row.operator("fpsfly.setkey", text="Set").key="right2" 
-		row.prop(self, "Right3")
+		row.prop(self, "right3")
 		row.operator("fpsfly.setkey", text="Set").key="right3" 
 		split = self.layout.split(0.1)
-		split.label(text="Forward Key")
+		split.label(text="forward Key")
 		row = split.row()
-		row.prop(self, "Forward1")
+		row.prop(self, "forward1")
 		row.operator("fpsfly.setkey", text="Set").key="forward1" 
-		row.prop(self, "Forward2")
+		row.prop(self, "forward2")
 		row.operator("fpsfly.setkey", text="Set").key="forward2" 
-		row.prop(self, "Forward3")
+		row.prop(self, "forward3")
 		row.operator("fpsfly.setkey", text="Set").key="forward3" 
 		split = self.layout.split(0.1)
-		split.label(text="Back Key")
+		split.label(text="back Key")
 		row = split.row()
-		row.prop(self, "Back1")
+		row.prop(self, "back1")
 		row.operator("fpsfly.setkey", text="Set").key="back1" 
-		row.prop(self, "Back2")
+		row.prop(self, "back2")
 		row.operator("fpsfly.setkey", text="Set").key="back2" 
-		row.prop(self, "Back3")
+		row.prop(self, "back3")
 		row.operator("fpsfly.setkey", text="Set").key="back3" 
 		split = self.layout.split(0.1)
-		split.label(text="Up Key")
+		split.label(text="up Key")
 		row = split.row()
-		row.prop(self, "Up1")
+		row.prop(self, "up1")
 		row.operator("fpsfly.setkey", text="Set").key="up1" 
-		row.prop(self, "Up2")
+		row.prop(self, "up2")
 		row.operator("fpsfly.setkey", text="Set").key="up2" 
-		row.prop(self, "Up3")
+		row.prop(self, "up3")
 		row.operator("fpsfly.setkey", text="Set").key="up3" 
 		split = self.layout.split(0.1)
-		split.label(text="Down Key")
+		split.label(text="down Key")
 		row = split.row()
-		row.prop(self, "Down1")
+		row.prop(self, "down1")
 		row.operator("fpsfly.setkey", text="Set").key="down1" 
-		row.prop(self, "Down2")
+		row.prop(self, "down2")
 		row.operator("fpsfly.setkey", text="Set").key="down2" 
-		row.prop(self, "Down3")
+		row.prop(self, "down3")
 		row.operator("fpsfly.setkey", text="Set").key="down3" 
 
 
@@ -432,7 +358,7 @@ class FPSFlyStart(bpy.types.Operator):
 	
 	def invoke(self, context, event):
 	
-		global addonprefs, oldkeyboard
+		global addonprefs
 	
 		scn = bpy.context.scene
 
@@ -440,99 +366,52 @@ class FPSFlyStart(bpy.types.Operator):
 		
 		context.window_manager.modal_handler_add(self)
 		
-		oldkeyboard = addonprefs.Keyboard
+		addonprefs.oldkeyboard = addonprefs.Keyboard
 		bpy.app.handlers.scene_update_post.append(sceneupdate_handler)
 		
 		return {"RUNNING_MODAL"}
 
 	def modal(self, context, event):
 	
-		global navon, leftnav, rightnav, forwardnav, backnav, upnav, downnav
-		global movetimer, leave, msync, acton
-		global rv3d, region
-		
+		global leftnav, rightnav, forwardnav, backnav, upnav, downnav		
 		
 		scn = bpy.context.scene
-		
-		for region in bpy.context.area.regions:
-			if region.type == "UI":
-				regionui = region
 				
-		if msync:
-			msync = 0
-			bpy.ops.wm.fps_mouse_position("INVOKE_DEFAULT")
-			
-		def hidemouse():
+		def initnav():
 		
-			global Xdisplay, Xwindow, prevcursor, bitmap
-			global msync, xcenter, ycenter
-		
-			msync = 1
-			if sys.platform == "linux":
-				xcenter = 400
-				ycenter = 400
-				Xdisplay = dll.XOpenDisplay(None)
-				Xwindow = dll.XDefaultRootWindow(Xdisplay)
-				dll.XWarpPointer(Xdisplay, None, Xwindow, 0, 0, 0, 0, xcenter, ycenter)
-				dll.XSync(Xdisplay, True)
-				pyarr = [0,0,0,0,0,0,0,0]
-				arr = (c_int * len(pyarr))(*pyarr)
-				bitmap = dll.XCreateBitmapFromData(Xdisplay, Xwindow, arr, 8, 8)
-				invicursor = dll.XCreatePixmapCursor(Xdisplay, bitmap, bitmap, byref(black), byref(black), 0, 0)		
-				dll.XDefineCursor(Xdisplay, Xwindow, invicursor)
-				dll.XFreeCursor(Xdisplay, invicursor)
-				dll.XSync(Xdisplay, True)
-			elif sys.platform == "win32":
-				wind = windll.user32.GetActiveWindow()
-				windll.user32.GetWindowRect(wind, byref(Window))
-				xcenter = int(Window.left + region.x + region.width/2)
-				ycenter = int(Window.bottom - region.y - region.height/2)
-				print (xcenter, ycenter)
-				windll.user32.SetCursorPos(xcenter, ycenter)
-			elif sys.platform == "darwin":
-				xcenter = 400
-				ycenter = 400
-				mouseevent = CGEventCreateMouseEvent(None, kCGEventMouseMoved, (xcenter, ycenter), kCGMouseButtonLeft)
-				CGEventPost(kCGHIDEventTap, mouseevent)
+			self.navon = 1
+			for self.region in bpy.context.area.self.regions:
+				if self.region.type == "UI":
+					self.regionui = self.region
+			self.region = bpy.context.self.region
+			self.rv3d = bpy.context.space_data.self.region_3d
+			self.window = bpy.context.window
+			self.window.cursor_modal_set('NONE')
+			self.xcenter = int(self.region.x + self.region.width/2)
+			self.ycenter = int(self.region.y + self.region.height/2)
+			self.window.cursor_warp(self.xcenter, self.ycenter)
+			scn.PreSelOff = 1
+			self.region.tag_redraw()
 				
-		if not(navon):
+		if not(self.navon):
 			if event.type in ["F"]:
 				if event.shift and event.ctrl and not(event.alt) and event.value == "PRESS":
-					navon = 1
+					initnav()
 					scn.Toggle = 1
-					regionui.tag_redraw()
-					rv3d = bpy.context.space_data.region_3d
-					scn.PreSelOff = 1
-					bpy.context.region.tag_redraw()
-					hidemouse()
+					self.regionui.tag_redraw()
 					return {"RUNNING_MODAL"}
-			if scn.Toggle and not(navon):
-				navon = 1
-				rv3d = bpy.context.space_data.region_3d
-				scn.PreSelOff = 1
-				bpy.context.region.tag_redraw()
-				hidemouse()
+			if scn.Toggle and not(self.navon):
+				initnav()
 				return {"RUNNING_MODAL"}
 			
-		if not(navon):
+		if not(self.navon):
 			return {"PASS_THROUGH"}
 		
 		mx = event.mouse_x
 		my = event.mouse_y
-		for a in bpy.context.screen.areas:
-			if not(a.type == "VIEW_3D"):
-				continue
-			for r in a.regions:
-				if not(r.type == "WINDOW"):
-					continue
-				if mx > r.x and my > r.y and mx < r.x + r.width and my < r.y + r.height:
-					for sp in a.spaces:
-						if sp.type == "VIEW_3D":
-							region = r
-							rv3d = sp.region_3d
-					break
-		if not(rv3d.is_perspective):
-			navon = 0
+		self.rv3d = bpy.context.space_data.self.region_3d
+		if not(self.rv3d.is_perspective):
+			self.navon = 0
 			scn.Toggle = 0
 			return {"RUNNING_MODAL"}
 		
@@ -541,22 +420,11 @@ class FPSFlyStart(bpy.types.Operator):
 			if event.shift and event.ctrl and not(event.alt) and event.value == "PRESS":
 				off = 1
 		if off or event.type in ["ESC"] or not(scn.Toggle):
-			if sys.platform == "linux":
-				dll.XWarpPointer(Xdisplay, None, Xwindow, 0, 0, 0, 0, xcenter, ycenter)
-				cursor = dll.XCreateFontCursor(Xdisplay, c_long(68))
-				dll.XDefineCursor(Xdisplay, Xwindow, cursor)
-				dll.XFreeCursor(Xdisplay, cursor)
-				dll.XCloseDisplay(Xdisplay)
-			elif sys.platform == "win32":
-				windll.user32.SetCursorPos(xcenter, ycenter)
-			elif sys.platform == "darwin":
-				mouseevent = CGEventCreateMouseEvent(None, kCGEventMouseMoved, (xcenter, ycenter), kCGMouseButtonLeft)
-				CGEventPost(kCGHIDEventTap, mouseevent)
-
-			navon = 0
+			self.window.cursor_modal_restore()
+			self.navon = 0
 			scn.Toggle = 0
-			regionui.tag_redraw()
-			region.tag_redraw()
+			self.regionui.tag_redraw()
+			self.region.tag_redraw()
 			scn.PreSelOff = 0
 			leftnav = 0
 			rightnav = 0
@@ -564,7 +432,7 @@ class FPSFlyStart(bpy.types.Operator):
 			backnav = 0
 			upnav = 0
 			downnav = 0
-			acton = 0
+			self.acton = 0
 			return {"RUNNING_MODAL"}
 			
 		if event.type in ["WHEELUPMOUSE"]:
@@ -574,81 +442,74 @@ class FPSFlyStart(bpy.types.Operator):
 			if addonprefs.Speed == 0:
 				addonprefs.Speed = 2
 			
-		if event.type in [addonprefs.Mouselook]:
+		if event.type in [addonprefs.mouselook]:
 			if event.value == "PRESS" and addonprefs.ActPass:
-				acton = 1
+				self.acton = 1
 			else:
-				acton = 0
+				self.acton = 0
 		if addonprefs.ActPass == 0:
-			acton = 1
+			self.acton = 1
 				
 		if event.type in ["MOUSEMOVE", "LEFTMOUSE", "WHEELUPMOUSE", "WHEELDOWNMOUSE"]:
 			if event.type in ["MOUSEMOVE"]:
-				if mx == mxcenter and my == mycenter:
+				if mx == self.xcenter and my == self.ycenter:
 					return {"RUNNING_MODAL"}
-				if sys.platform == "linux":
-					dll.XWarpPointer(Xdisplay, None, Xwindow, 0, 0, 0, 0, xcenter, ycenter)
-					dll.XSync(Xdisplay, True)
-				elif sys.platform == "win32":
-					windll.user32.SetCursorPos(xcenter, ycenter)
-				elif sys.platform == "darwin":
-					mouseevent = CGEventCreateMouseEvent(None, kCGEventMouseMoved, (xcenter, ycenter), kCGMouseButtonLeft)
-					CGEventPost(kCGHIDEventTap, mouseevent)
-			if acton and event.type in ["MOUSEMOVE"] and rv3d:
+				self.window.cursor_warp(self.xcenter, self.ycenter)
+			if self.acton and event.type in ["MOUSEMOVE"] and self.rv3d:
 				if addonprefs.YMirror:
 					ymult = -1
 				else:
 					ymult = 1
 				smult = (addonprefs.MSens / 10) + 0.1
-				dx = mx - mxcenter
-				dy = my - mycenter
-				cmat = rv3d.view_matrix.inverted()
+				dx = mx - self.xcenter
+				dy = my - self.ycenter
+				cmat = self.rv3d.view_matrix.inverted()
 				dxmat = Matrix.Rotation(math.radians(-dx*smult / 5), 3, "Z")
 				cmat3 = cmat.copy().to_3x3()
 				cmat3.rotate(dxmat)
 				cmat4 = cmat3.to_4x4()
 				cmat4.translation = cmat.translation
-				rv3d.view_matrix = cmat4.inverted()
-				rv3d.update()
-				cmat = rv3d.view_matrix.inverted()
-				dymat = Matrix.Rotation(math.radians(dy*ymult*smult / 5), 3, rv3d.view_matrix[0][:3])
+				self.rv3d.view_matrix = cmat4.inverted()
+				self.rv3d.update()
+				cmat = self.rv3d.view_matrix.inverted()
+				dymat = Matrix.Rotation(math.radians(dy*ymult*smult / 5), 3, self.rv3d.view_matrix[0][:3])
 				cmat3 = cmat.copy().to_3x3()
 				cmat3.rotate(dymat)
 				cmat4 = cmat3.to_4x4()
 				cmat4.translation = cmat.translation
-				rv3d.view_matrix = cmat4.inverted()
-				rv3d.update()
-			if mx > regionui.x or my < regionui.y:
+				self.rv3d.view_matrix = cmat4.inverted()
+				self.rv3d.update()
+			if mx > self.regionui.x or my < self.regionui.y:
 				return {"PASS_THROUGH"}
 			else:
 				return {"RUNNING_MODAL"}
 			
-		if event.type in [addonprefs.Left1, addonprefs.Left2, addonprefs.Left3]:
+		if event.type in [addonprefs.left1, addonprefs.left2, addonprefs.left3]:
 			if event.value == "PRESS":
 				leftnav = 1
 			else:
 				leftnav = 0
-		elif event.type in [addonprefs.Right1, addonprefs.Right2, addonprefs.Right3]:
+		elif event.type in [addonprefs.right1, addonprefs.right2, addonprefs.right3]:
 			if event.value == "PRESS":
 				rightnav = 1
 			else:
 				rightnav = 0
-		elif event.type in [addonprefs.Forward1, addonprefs.Forward2, addonprefs.Forward3]:
+		elif event.type in [addonprefs.forward1, addonprefs.forward2, addonprefs.forward3]:
 			if event.value == "PRESS":
 				forwardnav = 1
 			else:
 				forwardnav = 0
-		elif event.type in [addonprefs.Back1, addonprefs.Back2, addonprefs.Back3]:
+		elif event.type in [addonprefs.back1, addonprefs.back2, addonprefs.back3]:
 			if event.value == "PRESS":
 				backnav = 1
 			else:
 				backnav = 0
-		elif event.type in [addonprefs.Up1, addonprefs.Up2, addonprefs.Up3]:
+		elif event.type in [addonprefs.up1, addonprefs.up2, addonprefs.up3]:
 			if event.value == "PRESS":
 				upnav = 1
 			else:
 				upnav = 0
-		elif event.type in [addonprefs.Down1, addonprefs.Down2, addonprefs.Down3]:
+		elif event.type in [addonprefs.down1, addonprefs.down2, addonprefs.down3]:
 			if event.value == "PRESS":
 				downnav = 1
 			else:
@@ -690,55 +551,54 @@ def redraw():
 			started = 1
 			bpy.ops.view3d.fpsfly("INVOKE_DEFAULT")
 			
-	if region and navon:
+	if self.region and self.navon:
 	
-		if sys.platform == "linux":
-			x = region.width / 2
-			y = region.height / 2
-			glBegin(GL_LINES)
-			glColor3f(0.7, 0, 0)
-			glVertex2f(x - 8, y)
-			glVertex2f(x + 8, y)
-			glVertex2f(x, y - 8)
-			glVertex2f(x, y + 8)
-			glEnd()
+		x = self.region.width / 2
+		y = self.region.height / 2
+		glBegin(GL_LINES)
+		glColor3f(0.7, 0, 0)
+		glVertex2f(x - 8, y)
+		glVertex2f(x + 8, y)
+		glVertex2f(x, y - 8)
+		glVertex2f(x, y + 8)
+		glEnd()
 		
 		glColor3f(1, 1, 0.7)
 		glMatrixMode(GL_PROJECTION)
 		glLoadIdentity()
-		gluOrtho2D(0, region.width, 0, region.height)
+		gluOrtho2D(0, self.region.width, 0, self.region.height)
 		glMatrixMode(GL_MODELVIEW)
 		glLoadIdentity()
-		blf.position(0, region.width/2 - 80, region.height - 20, 0)
+		blf.position(0, self.region.width/2 - 80, self.region.height - 20, 0)
 		blf.size(0, 15, 72)
 		blf.draw(0, "FPS navigation (ESC exits)")
 
 
 		divi = 200
 		def moveleft():
-			bfvec = Vector(rv3d.view_matrix[0][:3])
+			bfvec = Vector(self.rv3d.view_matrix[0][:3])
 			bfvec.length = addonprefs.Speed / divi
-			rv3d.view_location -= bfvec
+			self.rv3d.view_location -= bfvec
 		def moveright():
-			bfvec = Vector(rv3d.view_matrix[0][:3])
+			bfvec = Vector(self.rv3d.view_matrix[0][:3])
 			bfvec.length = addonprefs.Speed / divi
-			rv3d.view_location += bfvec
+			self.rv3d.view_location += bfvec
 		def moveforward():
-			bfvec = Vector(rv3d.view_matrix[2][:3])
+			bfvec = Vector(self.rv3d.view_matrix[2][:3])
 			bfvec.length = addonprefs.Speed / divi
-			rv3d.view_location -= bfvec
+			self.rv3d.view_location -= bfvec
 		def moveback():
-			bfvec = Vector(rv3d.view_matrix[2][:3])
+			bfvec = Vector(self.rv3d.view_matrix[2][:3])
 			bfvec.length = addonprefs.Speed / divi
-			rv3d.view_location += bfvec
+			self.rv3d.view_location += bfvec
 		def moveup():
-			bfvec = Vector(rv3d.view_matrix[1][:3])
+			bfvec = Vector((0, 0, 1))
 			bfvec.length = addonprefs.Speed / divi
-			rv3d.view_location += bfvec
+			self.rv3d.view_location += bfvec
 		def movedown():
-			bfvec = Vector(rv3d.view_matrix[1][:3])
+			bfvec = Vector((0, 0, 1))
 			bfvec.length = addonprefs.Speed / divi
-			rv3d.view_location -= bfvec
+			self.rv3d.view_location -= bfvec
 		
 		if leftnav:
 			moveleft()
@@ -752,57 +612,55 @@ def redraw():
 			moveup()
 		if downnav:
 			movedown()
-		rv3d.update()
+		self.rv3d.update()
 		
-		rv3d.view_matrix = rv3d.view_matrix
+		self.rv3d.view_matrix = self.rv3d.view_matrix
 
 
 
 		
 def sceneupdate_handler(dummy):
 
-	global oldkeyboard
-
-	if not(addonprefs.Keyboard == oldkeyboard):
+	if not(addonprefs.Keyboard == addonprefs.oldkeyboard):
 		if addonprefs.Keyboard == "QWERTY":
-			addonprefs.Left1 = "A"
-			addonprefs.Left2 = "NOT SET"
-			addonprefs.Left3 = "NOT SET"
-			addonprefs.Right1 = "D"
-			addonprefs.Right2 = "NOT SET"
-			addonprefs.Right3 = "NOT SET"
-			addonprefs.Forward1 = "W"
-			addonprefs.Forward2 = "NOT SET"
-			addonprefs.Forward3 = "NOT SET"
-			addonprefs.Back1 = "S"
-			addonprefs.Back2 = "NOT SET"
-			addonprefs.Back3 = "NOT SET"
-			addonprefs.Up1 = "E"
-			addonprefs.Up2 = "SPACE"
-			addonprefs.Up3 = "NOT SET"
-			addonprefs.Down1 = "Q"
-			addonprefs.Down2 = "C"
-			addonprefs.Down3 = "X"
+			addonprefs.left1 = "A"
+			addonprefs.left2 = "NOT SET"
+			addonprefs.left3 = "NOT SET"
+			addonprefs.right1 = "D"
+			addonprefs.right2 = "NOT SET"
+			addonprefs.right3 = "NOT SET"
+			addonprefs.forward1 = "W"
+			addonprefs.forward2 = "NOT SET"
+			addonprefs.forward3 = "NOT SET"
+			addonprefs.back1 = "S"
+			addonprefs.back2 = "NOT SET"
+			addonprefs.back3 = "NOT SET"
+			addonprefs.up1 = "E"
+			addonprefs.up2 = "SPACE"
+			addonprefs.up3 = "NOT SET"
+			addonprefs.down1 = "Q"
+			addonprefs.down2 = "C"
+			addonprefs.down3 = "X"
 		elif addonprefs.Keyboard == "AZERTY":
-			addonprefs.Left1 = "Q"
-			addonprefs.Left2 = "NOT SET"
-			addonprefs.Left3 = "NOT SET"
-			addonprefs.Right1 = "D"
-			addonprefs.Right2 = "NOT SET"
-			addonprefs.Right3 = "NOT SET"
-			addonprefs.Forward1 = "Z"
-			addonprefs.Forward2 = "NOT SET"
-			addonprefs.Forward3 = "NOT SET"
-			addonprefs.Back1 = "S"
-			addonprefs.Back2 = "NOT SET"
-			addonprefs.Back3 = "NOT SET"
-			addonprefs.Up1 = "E"
-			addonprefs.Up2 = "SPACE"
-			addonprefs.Up3 = "NOT SET"
-			addonprefs.Down1 = "A"
-			addonprefs.Down2 = "C"
-			addonprefs.Down3 = "X"
-		oldkeyboard = addonprefs.Keyboard
+			addonprefs.left1 = "Q"
+			addonprefs.left2 = "NOT SET"
+			addonprefs.left3 = "NOT SET"
+			addonprefs.right1 = "D"
+			addonprefs.right2 = "NOT SET"
+			addonprefs.right3 = "NOT SET"
+			addonprefs.forward1 = "Z"
+			addonprefs.forward2 = "NOT SET"
+			addonprefs.forward3 = "NOT SET"
+			addonprefs.back1 = "S"
+			addonprefs.back2 = "NOT SET"
+			addonprefs.back3 = "NOT SET"
+			addonprefs.up1 = "E"
+			addonprefs.up2 = "SPACE"
+			addonprefs.up3 = "NOT SET"
+			addonprefs.down1 = "A"
+			addonprefs.down2 = "C"
+			addonprefs.down3 = "X"
+		addonprefs.oldkeyboard = addonprefs.Keyboard
 
 
 @persistent
