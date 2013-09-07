@@ -47,7 +47,7 @@ Mirror Y : opposite Y direction.
 bl_info = {
 	"name": "FPSFly",
 	"author": "Gert De Roost",
-	"version": (0, 5, 0),
+	"version": (0, 6, 1),
 	"blender": (2, 6, 8),
 	"location": "View3D > UI > FPSFly",
 	"description": "FPS viewport navigation",
@@ -62,11 +62,6 @@ from bgl import *
 import blf
 from mathutils import Vector, Matrix, Color
 import math
-from bpy.app.handlers import persistent
-    
-
-ready = 0
-started = 0
 
 
 
@@ -87,15 +82,15 @@ class SetKey(bpy.types.Operator):
 
 	def modal(self, context, event):
 	
-		isset = False
-		if event.type not in {"MOUSEMOVE", "INBETWEEN_MOUSEMOVE", "TIMER", "NONE"}:
+		isset = 0
+		if not(event.type in {'MOUSEMOVE', 'INBETWEEN_MOUSEMOVE', 'TIMER', 'NONE'}):
 			if event.value == 'PRESS':
 				setattr(addonprefs, self.key, event.type)
-				isset = True
-
+				isset = 1
+		
 		if isset:
 			context.region.tag_redraw()
-			return {"FINISHED"}
+			return {'FINISHED'}
 		else:
 			return {'RUNNING_MODAL'}
 
@@ -108,9 +103,7 @@ class FPSFlyPanel(bpy.types.Panel):
 	
 	def draw(self, context):
 		
-		scn = context.scene
-		
-		self.layout.prop(scn, "Toggle")
+		self.layout.operator("view3d.fpsfly", "Enter FPS navigation")
 
 
 class FPSFlyAddonPreferences(bpy.types.AddonPreferences):
@@ -333,8 +326,6 @@ class FPSFlyStart(bpy.types.Operator):
 		
 		self.navon = 0
 		self.acton = 0
-		self.region = None
-		self.rv3d = None
 		self.leftnav = 0
 		self.rightnav = 0
 		self.forwardnav = 0
@@ -342,68 +333,40 @@ class FPSFlyStart(bpy.types.Operator):
 		self.upnav = 0
 		self.downnav = 0
 		
+		self._handle = bpy.types.SpaceView3D.draw_handler_add(redraw, (), "WINDOW", "POST_PIXEL")
+
+		for self.region in context.area.regions:
+			if self.region.type == "UI":
+				self.regionui = self.region
+		self.region = context.region
+		self.rv3d = context.space_data.region_3d
+		self.window = context.window
+		self.cursor_hide(context)
+		self.xcenter = int(self.region.x + self.region.width/2)
+		self.ycenter = int(self.region.y + self.region.height/2)
+		self.cursor_reset(context)
+		context.scene.PreSelOff = 1
+		self.region.tag_redraw()
+				
 		return {'RUNNING_MODAL'}
+
 
 	def modal(self, context, event):
 	
-		scn = context.scene
-				
-		def initnav():
-		
-			self.navon = 1
-			for self.region in context.area.regions:
-				if self.region.type == "UI":
-					self.regionui = self.region
-			self.region = context.region
-			self.rv3d = context.space_data.region_3d
-			self.window = context.window
-			self.cursor_hide(context)
-			self.xcenter = int(self.region.x + self.region.width/2)
-			self.ycenter = int(self.region.y + self.region.height/2)
-			self.cursor_reset(context)
-			scn.PreSelOff = 1
-			self.region.tag_redraw()
-				
-		if not(self.navon):
-			if event.type == 'F':
-				if event.shift and event.ctrl and not(event.alt) and event.value == 'PRESS':
-					initnav()
-					scn.Toggle = 1
-					self.regionui.tag_redraw()
-					return {'RUNNING_MODAL'}
-			if scn.Toggle and not(self.navon):
-				initnav()
-				return {'RUNNING_MODAL'}
-			
-		if not(self.navon):
-			return {"PASS_THROUGH"}
-		
 		mx = event.mouse_x
 		my = event.mouse_y
-		if not(self.rv3d.is_perspective):
-			self.navon = 0
-			scn.Toggle = 0
-			return {'RUNNING_MODAL'}
 		
 		off = 0
 		if event.type == 'F':
 			if event.shift and event.ctrl and not(event.alt) and event.value == 'PRESS':
 				off = 1
-		if off or event.type == 'ESC' or not(scn.Toggle):
+		if off or event.type == 'ESC' or not(self.rv3d.is_perspective):
 			self.cursor_restore(context)
-			self.navon = 0
-			scn.Toggle = 0
 			self.regionui.tag_redraw()
 			self.region.tag_redraw()
-			scn.PreSelOff = 0
-			self.leftnav = 0
-			self.rightnav = 0
-			self.forwardnav = 0
-			self.backnav = 0
-			self.upnav = 0
-			self.downnav = 0
-			self.acton = 0
-			return {'RUNNING_MODAL'}
+			context.scene.PreSelOff = 0
+			bpy.types.SpaceView3D.draw_handler_remove(self._handle, 'WINDOW')
+			return {'FINISHED'}
 			
 		if event.type == 'WHEELUPMOUSE':
 			addonprefs.Speed *= 1.5
@@ -430,11 +393,11 @@ class FPSFlyStart(bpy.types.Operator):
 					ymult = -1
 				else:
 					ymult = 1
-				smult = (addonprefs.MSens / 10.0) + 0.1
+				smult = (addonprefs.MSens / 10) + 0.1
 				dx = mx - self.xcenter
 				dy = my - self.ycenter
 				cmat = self.rv3d.view_matrix.inverted()
-				dxmat = Matrix.Rotation(math.radians(-dx * smult / 5.0), 3, 'Z')
+				dxmat = Matrix.Rotation(math.radians(-dx*smult / 5), 3, 'Z')
 				cmat3 = cmat.copy().to_3x3()
 				cmat3.rotate(dxmat)
 				cmat4 = cmat3.to_4x4()
@@ -442,7 +405,7 @@ class FPSFlyStart(bpy.types.Operator):
 				self.rv3d.view_matrix = cmat4.inverted()
 				self.rv3d.update()
 				cmat = self.rv3d.view_matrix.inverted()
-				dymat = Matrix.Rotation(math.radians(dy * ymult * smult / 5.0), 3, self.rv3d.view_matrix[0][:3])
+				dymat = Matrix.Rotation(math.radians(dy*ymult*smult / 5), 3, self.rv3d.view_matrix[0][:3])
 				cmat3 = cmat.copy().to_3x3()
 				cmat3.rotate(dymat)
 				cmat4 = cmat3.to_4x4()
@@ -457,6 +420,7 @@ class FPSFlyStart(bpy.types.Operator):
 		if event.type in {addonprefs.left1, addonprefs.left2, addonprefs.left3}:
 			if event.value == 'PRESS':
 				self.leftnav = 1
+				print ("left")
 			else:
 				self.leftnav = 0
 		elif event.type in {addonprefs.right1, addonprefs.right2, addonprefs.right3}:
@@ -484,8 +448,7 @@ class FPSFlyStart(bpy.types.Operator):
 				self.downnav = 1
 			else:
 				self.downnav = 0
-				
-			
+					
 
 		return {'RUNNING_MODAL'}
 
@@ -503,27 +466,20 @@ class FPSFlyStart(bpy.types.Operator):
 
 def register():
 
-	global _handle, ready
-
-	bpy.types.Scene.Toggle = bpy.props.BoolProperty(
-			name = "FPS flymode", 
-			description = "Turn on/off FPS navigation mode",
-			default = False)
-	
 	bpy.types.Scene.PreSelOff = bpy.props.BoolProperty(
 			name = "PreSelOff", 
 			description = "Switch off PreSel during FPS navigation mode",
 			default = False)
 
 	bpy.utils.register_module(__name__)
-	_handle = bpy.types.SpaceView3D.draw_handler_add(redraw, (), "WINDOW", "POST_PIXEL")
-	bpy.app.handlers.load_post.append(loadpost_handler)
-	ready = 1
+
+	wm = bpy.context.window_manager
+	view3d_km_items = wm.keyconfigs.default.keymaps['3D View'].keymap_items
+	view3d_km_items.new("view3d.fpsfly", 'F', 'PRESS', ctrl=True, shift=True)
 
 
 def unregister():
 
-	del bpy.types.Scene.Toggle
 	del bpy.types.Scene.PreSelOff
 
 	bpy.utils.unregister_module(__name__)
@@ -535,17 +491,9 @@ if __name__ == "__main__":
 	
 	
 
-@persistent
 def redraw():
 
-	global started
-	
-	if ready:
-		if not(started):
-			started = 1
-			bpy.ops.view3d.fpsfly("INVOKE_DEFAULT")
-			
-	if mainop.region and mainop.navon:
+	if mainop.region:
 	
 		x = mainop.region.width / 2
 		y = mainop.region.height / 2
@@ -655,14 +603,3 @@ def sceneupdate_handler(dummy):
 			addonprefs.down2 = "C"
 			addonprefs.down3 = "X"
 		addonprefs.oldkeyboard = addonprefs.Keyboard
-
-
-@persistent
-def loadpost_handler(dummy):
-
-	global started, ready
-
-	started = 0
-	ready = 1
-
-
