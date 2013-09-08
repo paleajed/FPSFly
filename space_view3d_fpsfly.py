@@ -47,7 +47,7 @@ Mirror Y : opposite Y direction.
 bl_info = {
 	"name": "FPSFly",
 	"author": "Gert De Roost",
-	"version": (0, 6, 4),
+	"version": (0, 6, 5),
 	"blender": (2, 6, 8),
 	"location": "View3D > UI > FPSFly",
 	"description": "FPS viewport navigation",
@@ -319,6 +319,11 @@ class FPSFlyStart(bpy.types.Operator):
 	
 		context.window_manager.modal_handler_add(self)
 		
+		bpy.types.Scene.PreSelOff = bpy.props.BoolProperty(
+				name = "PreSelOff", 
+				description = "Switch off PreSel during FPS navigation mode",
+				default = True)
+
 		addonprefs.oldkeyboard = addonprefs.Keyboard
 		bpy.app.handlers.scene_update_post.append(sceneupdate_handler)
 		
@@ -361,7 +366,9 @@ class FPSFlyStart(bpy.types.Operator):
 			self.cursor_restore(context)
 			self.regionui.tag_redraw()
 			self.region.tag_redraw()
-			context.scene.PreSelOff = False
+
+			del bpy.types.Scene.PreSelOff
+
 			bpy.types.SpaceView3D.draw_handler_remove(self._handle, 'WINDOW')
 			return {'FINISHED'}
 			
@@ -465,11 +472,6 @@ def register():
 
 	global addonprefs
 
-	bpy.types.Scene.PreSelOff = bpy.props.BoolProperty(
-			name = "PreSelOff", 
-			description = "Switch off PreSel during FPS navigation mode",
-			default = False)
-
 	bpy.utils.register_module(__name__)
 	
 	
@@ -482,8 +484,6 @@ def register():
 
 
 def unregister():
-
-	del bpy.types.Scene.PreSelOff
 
 	bpy.utils.unregister_module(__name__)
 
