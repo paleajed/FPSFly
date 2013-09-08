@@ -47,7 +47,7 @@ Mirror Y : opposite Y direction.
 bl_info = {
 	"name": "FPSFly",
 	"author": "Gert De Roost",
-	"version": (0, 6, 2),
+	"version": (0, 6, 4),
 	"blender": (2, 6, 8),
 	"location": "View3D > UI > FPSFly",
 	"description": "FPS viewport navigation",
@@ -313,12 +313,10 @@ class FPSFlyStart(bpy.types.Operator):
 	
 	def invoke(self, context, event):
 	
-		global addonprefs, mainop
+		global mainop
 		
 		mainop = self
 	
-		addonprefs = context.user_preferences.addons["space_view3d_fpsfly"].preferences
-		
 		context.window_manager.modal_handler_add(self)
 		
 		addonprefs.oldkeyboard = addonprefs.Keyboard
@@ -344,7 +342,7 @@ class FPSFlyStart(bpy.types.Operator):
 		self.xcenter = int(self.region.x + self.region.width/2)
 		self.ycenter = int(self.region.y + self.region.height/2)
 		self.cursor_reset(context)
-		context.scene.PreSelOff = rue
+		context.scene.PreSelOff = True
 		self.region.tag_redraw()
 				
 		return {'RUNNING_MODAL'}
@@ -465,13 +463,19 @@ class FPSFlyStart(bpy.types.Operator):
 
 def register():
 
+	global addonprefs
+
 	bpy.types.Scene.PreSelOff = bpy.props.BoolProperty(
 			name = "PreSelOff", 
 			description = "Switch off PreSel during FPS navigation mode",
 			default = False)
 
 	bpy.utils.register_module(__name__)
+	
+	
 
+	addonprefs = bpy.context.user_preferences.addons["space_view3d_fpsfly"].preferences
+		
 	wm = bpy.context.window_manager
 	view3d_km_items = wm.keyconfigs.default.keymaps['3D View'].keymap_items
 	view3d_km_items.new("view3d.fpsfly", 'F', 'PRESS', ctrl=True, shift=True)
