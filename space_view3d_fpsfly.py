@@ -31,15 +31,20 @@ Use WASD (or ZQSD on Azerty) during navigation to move left/right forward/backwa
 a certain direction (default RIGHTMOUSE needs to be kept pressed to do mouselook.
 Also added EQ/EA for moving up/down.  update: now also X and V for down and SPACEBAR for up.
 Use mousewheel to adjust speed.
+Choose a ground object in the pulldown menu (Npanel) before entering nav mode
+to use walkmode; in walkmode you are always at the same distance above the chosen
+ground object, you can change this distance during nav by using Up/Down controls.
 
 Only works in perspective mode!
 
 Go to FPSFly Addon Preferences (UserPreferences->Addons->3D View->FPSFly and click arrow next to it) to change options :
 Active/Passive mode :  always mouselook (passive=off) or when RIGHTMOUSE pressed (active=on).
+Distance : the default distance above ground when using ground object.
 Navigation speed :  set flying speed.
 Keyboard layout :  choose QWERTY or AZERTY.
 Mouse sensitivity.
 Mirror Y : opposite Y direction.
+Key bindings: Set up to three keys/buttons for each control.
 
 """
 
@@ -47,7 +52,7 @@ Mirror Y : opposite Y direction.
 bl_info = {
 	"name": "FPSFly",
 	"author": "Gert De Roost",
-	"version": (0, 6, 5),
+	"version": (0, 7, 0),
 	"blender": (2, 6, 8),
 	"location": "View3D > UI > FPSFly",
 	"description": "FPS viewport navigation",
@@ -62,6 +67,7 @@ from bgl import *
 import blf
 from mathutils import Vector, Matrix, Color
 import math
+from bpy.app.handlers import persistent
 
 
 
@@ -103,7 +109,10 @@ class FPSFlyPanel(bpy.types.Panel):
 	
 	def draw(self, context):
 		
+		scn = context.scene
 		self.layout.operator("view3d.fpsfly", "Enter FPS navigation")
+		self.layout.prop(scn, "Ground")
+		
 
 
 class FPSFlyAddonPreferences(bpy.types.AddonPreferences):
@@ -237,11 +246,19 @@ class FPSFlyAddonPreferences(bpy.types.AddonPreferences):
 			description = "Switch between active and passive mouselook mode",
 			default = True)
 			
+	Distance = bpy.props.FloatProperty(
+			name = "Distance to ground object", 
+			description = "Sets the walkers default distance to the ground object",
+			min = 0,
+			max = 100,
+			default = 0.1)
+			
 	def draw(self, context):
 
 		self.layout.prop(self, "ActPass")
-		self.layout.prop(self, "Speed")
+		self.layout.prop(self, "Distance")
 		self.layout.prop(self, "Keyboard")
+		self.layout.prop(self, "Speed")
 		self.layout.prop(self, "MSens")
 		self.layout.prop(self, "YMirror")
 		self.layout.label(text="Key Bindings:")
@@ -313,9 +330,7 @@ class FPSFlyStart(bpy.types.Operator):
 	
 	def invoke(self, context, event):
 	
-		global mainop
-		
-		mainop = self
+		self.scn = context.scene
 	
 		context.window_manager.modal_handler_add(self)
 		
@@ -325,7 +340,33 @@ class FPSFlyStart(bpy.types.Operator):
 				default = True)
 
 		addonprefs.oldkeyboard = addonprefs.Keyboard
-		bpy.app.handlers.scene_update_post.append(sceneupdate_handler)
+		
+		for self.region in context.area.regions:
+			if self.region.type == "UI":
+				self.regionui = self.region
+		self.region = context.region
+		self.rv3d = context.space_data.region_3d
+		self.window = context.window
+		
+		self.usingground = False
+		ground = bpy.data.objects.get(self.scn.Ground)
+		if not(ground == None):
+			self.usingground = True
+			self.camobject = bpy.data.objects.new("FPSFly", object_data = None)
+			self.scn.objects.link(self.camobject)
+			self.constraint = self.camobject.constraints.new('SHRINKWRAP')
+			self.constraint.shrinkwrap_type = 'PROJECT'
+			self.constraint.distance = addonprefs.Distance
+			self.constraint.target = ground			
+			self.constraint.project_axis = 'NEG_Z'
+			
+			eye = Vector(self.rv3d.view_matrix[2][:3])
+			eye.length = self.rv3d.view_distance
+			eyevec = self.rv3d.view_location + eye
+			self.camobject.location = eyevec + Vector((0, 0, 10000))
+			self.scn.update()
+			delta = self.camobject.matrix_world.translation - eyevec
+			self.rv3d.view_location += delta
 		
 		self.acton = False
 		self.leftnav = False
@@ -335,14 +376,8 @@ class FPSFlyStart(bpy.types.Operator):
 		self.upnav = False
 		self.downnav = False
 		
-		self._handle = bpy.types.SpaceView3D.draw_handler_add(redraw, (), "WINDOW", "POST_PIXEL")
+		self._handle = bpy.types.SpaceView3D.draw_handler_add(self.redraw, (), "WINDOW", "POST_PIXEL")
 
-		for self.region in context.area.regions:
-			if self.region.type == "UI":
-				self.regionui = self.region
-		self.region = context.region
-		self.rv3d = context.space_data.region_3d
-		self.window = context.window
 		self.cursor_hide(context)
 		self.xcenter = int(self.region.x + self.region.width/2)
 		self.ycenter = int(self.region.y + self.region.height/2)
@@ -366,6 +401,10 @@ class FPSFlyStart(bpy.types.Operator):
 			self.cursor_restore(context)
 			self.regionui.tag_redraw()
 			self.region.tag_redraw()
+
+			if self.usingground:
+				context.scene.objects.unlink(self.camobject)
+				bpy.data.objects.remove(self.camobject)
 
 			del bpy.types.Scene.PreSelOff
 
@@ -457,6 +496,7 @@ class FPSFlyStart(bpy.types.Operator):
 		return {'RUNNING_MODAL'}
 
 	
+
 	# utility functions
 	def cursor_reset(self, context):
 		context.window.cursor_warp(self.xcenter, self.ycenter)
@@ -468,14 +508,118 @@ class FPSFlyStart(bpy.types.Operator):
 		context.window.cursor_modal_restore()
 
 
+	def redraw(self):
+	
+		if self.region:
+		
+			x = self.region.width / 2
+			y = self.region.height / 2
+			glBegin(GL_LINES)
+			glColor3f(0.7, 0, 0)
+			glVertex2f(x - 8, y)
+			glVertex2f(x + 8, y)
+			glVertex2f(x, y - 8)
+			glVertex2f(x, y + 8)
+			glEnd()
+			
+			glColor3f(1, 1, 0.7)
+			glMatrixMode(GL_PROJECTION)
+			glLoadIdentity()
+			gluOrtho2D(0, self.region.width, 0, self.region.height)
+			glMatrixMode(GL_MODELVIEW)
+			glLoadIdentity()
+			blf.position(0, self.region.width/2 - 80, self.region.height - 20, 0)
+			blf.size(0, 15, 72)
+			blf.draw(0, "FPS navigation (ESC exits)")
+	
+	
+			divi = 200
+			def moveleft():
+				bfvec = Vector(self.rv3d.view_matrix[0][:3])
+				bfvec.length = addonprefs.Speed / divi
+				self.rv3d.view_location -= bfvec
+			def moveright():
+				bfvec = Vector(self.rv3d.view_matrix[0][:3])
+				bfvec.length = addonprefs.Speed / divi
+				self.rv3d.view_location += bfvec
+			def moveforward():
+				bfvec = Vector(self.rv3d.view_matrix[2][:3])
+				bfvec.length = addonprefs.Speed / divi
+				self.rv3d.view_location -= bfvec
+			def moveback():
+				bfvec = Vector(self.rv3d.view_matrix[2][:3])
+				bfvec.length = addonprefs.Speed / divi
+				self.rv3d.view_location += bfvec
+			def moveup():
+				bfvec = Vector((0, 0, 1))
+				bfvec.length = addonprefs.Speed / divi
+				if self.usingground:
+					addonprefs.Distance += bfvec.length / 20
+					self.constraint.distance = addonprefs.Distance
+				else:
+					self.rv3d.view_location += bfvec
+			def movedown():
+				bfvec = Vector((0, 0, 1))
+				bfvec.length = addonprefs.Speed / divi
+				if self.usingground:
+					addonprefs.Distance -= bfvec.length / 20
+					self.constraint.distance = addonprefs.Distance
+					if addonprefs.Distance < 0:
+						addonprefs.Distance = 0
+				else:
+					self.rv3d.view_location -= bfvec
+			
+			moved = False
+			if self.leftnav:
+				moved = True
+				moveleft()
+			if self.rightnav:
+				moved = True
+				moveright()
+			if self.forwardnav:
+				moved = True
+				moveforward()
+			if self.backnav:
+				moved = True
+				moveback()
+			if self.upnav:
+				moved = True
+				moveup()
+			if self.downnav:
+				moved = True
+				movedown()
+				
+			if moved:
+				self.rv3d.update()			
+				if self.usingground:
+					eye = Vector(self.rv3d.view_matrix[2][:3])
+					eye.length = self.rv3d.view_distance
+					eyevec = self.rv3d.view_location + eye
+					self.camobject.location = eyevec + Vector((0, 0, 10000))
+					self.scn.update()
+					delta = self.camobject.matrix_world.translation - eyevec
+					self.rv3d.view_location += delta
+					self.rv3d.update()
+				
+			
+			self.rv3d.view_matrix = self.rv3d.view_matrix
+		
+		
 def register():
 
-	global addonprefs
+	global addonprefs, oldobjlist
+	
+	bpy.types.Scene.Ground = bpy.props.EnumProperty(
+			items = [("None", "None", "Free fly")],
+			name = "Ground", 
+			description = "Set object used as ground to walk on",
+			default = "None")
 
 	bpy.utils.register_module(__name__)
 	
-	
+	bpy.app.handlers.scene_update_post.append(sceneupdate_handler)	
 
+	oldobjlist = []
 	addonprefs = bpy.context.user_preferences.addons["space_view3d_fpsfly"].preferences
 		
 	wm = bpy.context.window_manager
@@ -491,80 +635,29 @@ def unregister():
 if __name__ == "__main__":
 	register()
 	
-	
-	
-
-def redraw():
-
-	if mainop.region:
-	
-		x = mainop.region.width / 2
-		y = mainop.region.height / 2
-		glBegin(GL_LINES)
-		glColor3f(0.7, 0, 0)
-		glVertex2f(x - 8, y)
-		glVertex2f(x + 8, y)
-		glVertex2f(x, y - 8)
-		glVertex2f(x, y + 8)
-		glEnd()
-		
-		glColor3f(1, 1, 0.7)
-		glMatrixMode(GL_PROJECTION)
-		glLoadIdentity()
-		gluOrtho2D(0, mainop.region.width, 0, mainop.region.height)
-		glMatrixMode(GL_MODELVIEW)
-		glLoadIdentity()
-		blf.position(0, mainop.region.width/2 - 80, mainop.region.height - 20, 0)
-		blf.size(0, 15, 72)
-		blf.draw(0, "FPS navigation (ESC exits)")
-
-
-		divi = 200
-		def moveleft():
-			bfvec = Vector(mainop.rv3d.view_matrix[0][:3])
-			bfvec.length = addonprefs.Speed / divi
-			mainop.rv3d.view_location -= bfvec
-		def moveright():
-			bfvec = Vector(mainop.rv3d.view_matrix[0][:3])
-			bfvec.length = addonprefs.Speed / divi
-			mainop.rv3d.view_location += bfvec
-		def moveforward():
-			bfvec = Vector(mainop.rv3d.view_matrix[2][:3])
-			bfvec.length = addonprefs.Speed / divi
-			mainop.rv3d.view_location -= bfvec
-		def moveback():
-			bfvec = Vector(mainop.rv3d.view_matrix[2][:3])
-			bfvec.length = addonprefs.Speed / divi
-			mainop.rv3d.view_location += bfvec
-		def moveup():
-			bfvec = Vector((0, 0, 1))
-			bfvec.length = addonprefs.Speed / divi
-			mainop.rv3d.view_location += bfvec
-		def movedown():
-			bfvec = Vector((0, 0, 1))
-			bfvec.length = addonprefs.Speed / divi
-			mainop.rv3d.view_location -= bfvec
-		
-		if mainop.leftnav:
-			moveleft()
-		if mainop.rightnav:
-			moveright()
-		if mainop.forwardnav:
-			moveforward()
-		if mainop.backnav:
-			moveback()
-		if mainop.upnav:
-			moveup()
-		if mainop.downnav:
-			movedown()
-		mainop.rv3d.update()
-		
-		mainop.rv3d.view_matrix = mainop.rv3d.view_matrix
 
 
 
-		
+
+@persistent
 def sceneupdate_handler(dummy):
+
+	global oldobjlist
+
+	scn = bpy.context.scene
+
+	if not(list(scn.objects) == oldobjlist):
+		itemlist = [("None", "None", "Free fly without ground")]
+		for obj in scn.objects:
+			if obj.type == "MESH":
+				itemlist.append((obj.name, obj.name, "Set walk-on object"))
+		bpy.types.Scene.Ground = bpy.props.EnumProperty(
+				items = itemlist,
+				name = "Ground", 
+				description = "Set object used as ground to walk on")
+		if not(scn.Ground in scn.objects):
+			scn.Ground = "None"
+		oldobjlist = list(scn.objects)
 
 	if not(addonprefs.Keyboard == addonprefs.oldkeyboard):
 		if addonprefs.Keyboard == "QWERTY":
