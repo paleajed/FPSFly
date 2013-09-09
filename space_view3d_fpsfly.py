@@ -31,6 +31,11 @@ Use WASD (or ZQSD on Azerty) during navigation to move left/right forward/backwa
 a certain direction (default RIGHTMOUSE needs to be kept pressed to do mouselook.
 Also added EQ/EA for moving up/down.  update: now also X and V for down and SPACEBAR for up.
 Use mousewheel to adjust speed.
+Check "Walkmode" to switch from fly to walk mode; youll always be at a fixed distance above one or
+all objects; two options: "All", youll be walking on any object under you, or "Drop": youll drop down
+and the first object you hit will be your ground object.
+Teleport feature: point crosshair at any object, including ground and youll be teleported to the spot
+you were pointing at.
 Choose a ground object in the pulldown menu (Npanel) before entering nav mode
 to use walkmode; in walkmode you are always at the same distance above the chosen
 ground object, you can change this distance during nav by using Up/Down controls.
@@ -40,11 +45,13 @@ Only works in perspective mode!
 Go to FPSFly Addon Preferences (UserPreferences->Addons->3D View->FPSFly and click arrow next to it) to change options :
 Active/Passive mode :  always mouselook (passive=off) or when RIGHTMOUSE pressed (active=on).
 Distance : the default distance above ground when using ground object.
+Teleport Distance :  how close to the object youre teleported.
 Navigation speed :  set flying speed.
 Keyboard layout :  choose QWERTY or AZERTY.
 Mouse sensitivity.
 Mirror Y : opposite Y direction.
 Key bindings: Set up to three keys/buttons for each control.
+
 
 """
 
@@ -52,7 +59,7 @@ Key bindings: Set up to three keys/buttons for each control.
 bl_info = {
 	"name": "FPSFly",
 	"author": "Gert De Roost",
-	"version": (0, 7, 2),
+	"version": (0, 7, 4),
 	"blender": (2, 6, 8),
 	"location": "View3D > UI > FPSFly",
 	"description": "FPS viewport navigation",
@@ -88,6 +95,8 @@ class SetKey(bpy.types.Operator):
 
 	def modal(self, context, event):
 	
+		addonprefs = context.user_preferences.addons["space_view3d_fpsfly"].preferences
+		
 		isset = False
 		if not(event.type in {'MOUSEMOVE', 'INBETWEEN_MOUSEMOVE', 'TIMER', 'NONE'}):
 			if event.value == 'PRESS':
@@ -456,8 +465,13 @@ class FPSFlyStart(bpy.types.Operator):
 				cmat3.rotate(dymat)
 				cmat4 = cmat3.to_4x4()
 				cmat4.translation = cmat.translation
-				self.rv3d.view_matrix = cmat4.inverted()
-				self.rv3d.update()
+				tempmat = cmat4.inverted()
+				upvec = Vector(tempmat[1][:3])
+				downvec = -Vector(tempmat[1][:3])
+				if upvec.angle(Vector((0, 0, 1))) < math.radians(90):
+					if downvec.angle(Vector((0, 0, -1))) < math.radians(90):
+						self.rv3d.view_matrix = tempmat
+						self.rv3d.update()
 			if mx > self.regionui.x or my < self.regionui.y:
 				return {'PASS_THROUGH'}
 			else:
@@ -652,8 +666,6 @@ class FPSFlyStart(bpy.types.Operator):
 		
 def register():
 
-	global addonprefs
-	
 	bpy.types.Scene.Walk = bpy.props.BoolProperty(
 			name = "Walkmode", 
 			description = "Toggle the use of walkmode",
@@ -669,8 +681,6 @@ def register():
 	
 	bpy.app.handlers.scene_update_post.append(sceneupdate_handler)	
 
-	addonprefs = bpy.context.user_preferences.addons["space_view3d_fpsfly"].preferences
-		
 	wm = bpy.context.window_manager
 	view3d_km_items = wm.keyconfigs.default.keymaps['3D View'].keymap_items
 	view3d_km_items.new("view3d.fpsfly", 'F', 'PRESS', ctrl=True, shift=True)
@@ -678,6 +688,7 @@ def register():
 
 def unregister():
 
+	bpy.app.handlers.scene_update_post.remove(sceneupdate_handler)	
 	bpy.utils.unregister_module(__name__)
 
 
@@ -691,6 +702,8 @@ if __name__ == "__main__":
 @persistent
 def sceneupdate_handler(dummy):
 
+	addonprefs = bpy.context.user_preferences.addons["space_view3d_fpsfly"].preferences
+		
 	if not(addonprefs.Keyboard == addonprefs.oldkeyboard):
 		if addonprefs.Keyboard == "QWERTY":
 			addonprefs.left1 = "A"
