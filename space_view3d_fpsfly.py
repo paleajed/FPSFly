@@ -52,7 +52,7 @@ Key bindings: Set up to three keys/buttons for each control.
 bl_info = {
 	"name": "FPSFly",
 	"author": "Gert De Roost",
-	"version": (0, 7, 1),
+	"version": (0, 7, 2),
 	"blender": (2, 6, 8),
 	"location": "View3D > UI > FPSFly",
 	"description": "FPS viewport navigation",
@@ -113,7 +113,7 @@ class FPSFlyPanel(bpy.types.Panel):
 		self.layout.operator("view3d.fpsfly", "Enter FPS navigation")
 		self.layout.prop(scn, "Walk")
 		if scn.Walk:
-			self.layout.prop(scn, "Ground")
+			self.layout.prop(scn, "GroundMode")
 		
 
 
@@ -124,9 +124,14 @@ class FPSFlyAddonPreferences(bpy.types.AddonPreferences):
 	oldkeyboard = None
 	
 	mouselook = bpy.props.StringProperty(
-			name = "mouselook Button/Key", 
+			name = "Mouselook Button/Key", 
 			description = "Key binding for mouselook",
 			default = "RIGHTMOUSE")
+
+	teleport = bpy.props.StringProperty(
+			name = "Teleport Button/Key", 
+			description = "Key binding for teleport",
+			default = "T")
 
 	left1 = bpy.props.StringProperty(
 			name = "", 
@@ -229,7 +234,7 @@ class FPSFlyAddonPreferences(bpy.types.AddonPreferences):
 			description = "Sets the navigation speed",
 			min = 1,
 			max = 1000,
-			default = 20)
+			default = 50)
 	
 	MSens = bpy.props.IntProperty(
 			name = "Mouse Sensitivity", 
@@ -250,7 +255,14 @@ class FPSFlyAddonPreferences(bpy.types.AddonPreferences):
 			
 	Distance = bpy.props.FloatProperty(
 			name = "Distance to ground objects", 
-			description = "Sets the walkers default distance to the ground",
+			description = "Sets the  default walker distance to the ground",
+			min = 0,
+			max = 1000,
+			default = 2)
+			
+	TDistance = bpy.props.FloatProperty(
+			name = "Teleport distance", 
+			description = "Sets how close viewer teleports to the targeted object",
 			min = 0,
 			max = 1000,
 			default = 2)
@@ -259,6 +271,7 @@ class FPSFlyAddonPreferences(bpy.types.AddonPreferences):
 
 		self.layout.prop(self, "ActPass")
 		self.layout.prop(self, "Distance")
+		self.layout.prop(self, "TDistance")
 		self.layout.prop(self, "Keyboard")
 		self.layout.prop(self, "Speed")
 		self.layout.prop(self, "MSens")
@@ -267,6 +280,9 @@ class FPSFlyAddonPreferences(bpy.types.AddonPreferences):
 		row = self.layout.row()
 		row.prop(self, "mouselook")
 		row.operator("fpsfly.setkey", text="Set").key="mouselook" 		
+		row = self.layout.row()
+		row.prop(self, "teleport")
+		row.operator("fpsfly.setkey", text="Set").key="teleport" 		
 		split = self.layout.split(0.1)
 		split.label(text="left Key")
 		row = split.row()
@@ -351,6 +367,7 @@ class FPSFlyStart(bpy.types.Operator):
 		self.window = context.window
 		
 		if self.scn.Walk:
+			self.ground = None
 			self.movetoground()
 			
 		self.divi = 200
@@ -478,7 +495,7 @@ class FPSFlyStart(bpy.types.Operator):
 				self.downnav = False
 					
 
-		if event.type in ["TIMER"]:
+		if event.type == 'TIMER':
 			moved = False
 			if self.leftnav:
 				moved = True
@@ -503,6 +520,24 @@ class FPSFlyStart(bpy.types.Operator):
 				self.rv3d.update()
 				if self.scn.Walk:
 					self.movetoground()
+					
+					
+		if event.type == addonprefs.teleport:
+			if event.value == 'PRESS':
+				eyevec = -Vector(self.rv3d.view_matrix[2][:3])
+				eye = Vector(self.rv3d.view_matrix.inverted().col[3][:3])
+				start = eye
+				eyevec.length = 10000
+				end = start + eyevec
+				hit = self.scn.ray_cast(start, end)
+				if hit[0]:
+					delta = hit[3] - eye
+					delta.length -= addonprefs.TDistance
+					self.rv3d.view_location += delta
+					self.rv3d.update()
+				if self.scn.Walk:
+					self.movetoground()
+
 					
 					
 		return {'RUNNING_MODAL'}
@@ -557,10 +592,10 @@ class FPSFlyStart(bpy.types.Operator):
 	def movetoground(self):
 	
 		cammat = self.rv3d.view_matrix.inverted()
-		eyevec = Vector(cammat.col[3][:3])
-		start = eyevec
-		end = eyevec + Vector((0, 0, -10000))
-		if self.scn.Ground == "All":
+		eye = Vector(cammat.col[3][:3])
+		start = eye
+		end = eye + Vector((0, 0, -10000))
+		if self.scn.GroundMode == "All":
 			hit = self.scn.ray_cast(start, end)
 			if not (hit[0]):
 				return
@@ -568,17 +603,20 @@ class FPSFlyStart(bpy.types.Operator):
 			self.rv3d.view_matrix = cammat.inverted()
 			self.rv3d.update()
 		else:
-			ground = bpy.data.objects.get(self.scn.Ground)
 			while True:
 				hit = self.scn.ray_cast(start, end)
 				if hit[0]:
-					if hit[1] == ground:
+					if self.ground == None:
+						self.ground = hit[1]
+					if hit[1] == self.ground:
 						cammat.col[3][2] = hit[3][2] + addonprefs.Distance
 						self.rv3d.view_matrix = cammat.inverted()
 						self.rv3d.update()
 						break
 					start = hit[3] + Vector((0, 0, -0.00001))
 				else:
+					self.scn.Walk = False
+					self.regionui.tag_redraw()
 					return
 			
 
@@ -614,15 +652,15 @@ class FPSFlyStart(bpy.types.Operator):
 		
 def register():
 
-	global addonprefs, oldobjlist
+	global addonprefs
 	
 	bpy.types.Scene.Walk = bpy.props.BoolProperty(
 			name = "Walkmode", 
 			description = "Toggle the use of walkmode",
 			default = False)
 
-	bpy.types.Scene.Ground = bpy.props.EnumProperty(
-			items = [("All", "All", "Use all objects for walking on")],
+	bpy.types.Scene.GroundMode = bpy.props.EnumProperty(
+			items = [("All", "All", "Use all objects for walking on"), ("Drop", "Drop", "Walk on object you drop down on")],
 			name = "Ground", 
 			description = "Set object used as ground to walk on",
 			default = "All")
@@ -631,7 +669,6 @@ def register():
 	
 	bpy.app.handlers.scene_update_post.append(sceneupdate_handler)	
 
-	oldobjlist = []
 	addonprefs = bpy.context.user_preferences.addons["space_view3d_fpsfly"].preferences
 		
 	wm = bpy.context.window_manager
@@ -653,23 +690,6 @@ if __name__ == "__main__":
 
 @persistent
 def sceneupdate_handler(dummy):
-
-	global oldobjlist
-
-	scn = bpy.context.scene
-
-	if not(list(scn.objects) == oldobjlist):
-		itemlist = [("All", "All", "Use all objects for walking on")]
-		for obj in scn.objects:
-			if obj.type == "MESH":
-				itemlist.append((obj.name, obj.name, "Set walk-on object"))
-		bpy.types.Scene.Ground = bpy.props.EnumProperty(
-				items = itemlist,
-				name = "Ground", 
-				description = "Set object used as ground to walk on")
-		if not(scn.Ground in scn.objects):
-			scn.Ground = "All"
-		oldobjlist = list(scn.objects)
 
 	if not(addonprefs.Keyboard == addonprefs.oldkeyboard):
 		if addonprefs.Keyboard == "QWERTY":
