@@ -59,7 +59,7 @@ Key bindings: Set up to three keys/buttons for each control.
 bl_info = {
 	"name": "FPSFly",
 	"author": "Gert De Roost",
-	"version": (0, 7, 4),
+	"version": (0, 7, 6),
 	"blender": (2, 6, 8),
 	"location": "View3D > UI > FPSFly",
 	"description": "FPS viewport navigation",
@@ -359,6 +359,8 @@ class FPSFlyStart(bpy.types.Operator):
 	
 		self.scn = context.scene
 	
+		self.addonprefs = bpy.context.user_preferences.addons["space_view3d_fpsfly"].preferences
+		
 		context.window_manager.modal_handler_add(self)
 		
 		bpy.types.Scene.PreSelOff = bpy.props.BoolProperty(
@@ -366,7 +368,7 @@ class FPSFlyStart(bpy.types.Operator):
 				description = "Switch off PreSel during FPS navigation mode",
 				default = True)
 
-		addonprefs.oldkeyboard = addonprefs.Keyboard
+		self.addonprefs.oldkeyboard = self.addonprefs.Keyboard
 		
 		for self.region in context.area.regions:
 			if self.region.type == "UI":
@@ -424,18 +426,18 @@ class FPSFlyStart(bpy.types.Operator):
 			return {'FINISHED'}
 			
 		if event.type == 'WHEELUPMOUSE':
-			addonprefs.Speed *= 1.5
+			self.addonprefs.Speed *= 1.5
 		if event.type == 'WHEELDOWNMOUSE':
-			addonprefs.Speed *= 0.8
-			if addonprefs.Speed == 0:
-				addonprefs.Speed = 2
+			self.addonprefs.Speed *= 0.8
+			if self.addonprefs.Speed == 0:
+				self.addonprefs.Speed = 2
 			
-		if event.type == addonprefs.mouselook:
-			if event.value == 'PRESS' and addonprefs.ActPass:
+		if event.type == self.addonprefs.mouselook:
+			if event.value == 'PRESS' and self.addonprefs.ActPass:
 				self.acton = True
 			else:
 				self.acton = False
-		if addonprefs.ActPass == False:
+		if self.addonprefs.ActPass == False:
 			self.acton = True
 				
 		if event.type in {'MOUSEMOVE', 'LEFTMOUSE', 'WHEELUPMOUSE', 'WHEELDOWNMOUSE'}:
@@ -444,11 +446,11 @@ class FPSFlyStart(bpy.types.Operator):
 					return {'RUNNING_MODAL'}
 				self.cursor_reset(context)
 			if self.acton and event.type == 'MOUSEMOVE' and self.rv3d:
-				if addonprefs.YMirror:
+				if self.addonprefs.YMirror:
 					ymult = -1
 				else:
 					ymult = 1
-				smult = (addonprefs.MSens / 10) + 0.1
+				smult = (self.addonprefs.MSens / 10) + 0.1
 				dx = mx - self.xcenter
 				dy = my - self.ycenter
 				cmat = self.rv3d.view_matrix.inverted()
@@ -477,32 +479,32 @@ class FPSFlyStart(bpy.types.Operator):
 			else:
 				return {'RUNNING_MODAL'}
 			
-		if event.type in {addonprefs.left1, addonprefs.left2, addonprefs.left3}:
+		if event.type in {self.addonprefs.left1, self.addonprefs.left2, self.addonprefs.left3}:
 			if event.value == 'PRESS':
 				self.leftnav = True
 			else:
 				self.leftnav = False
-		elif event.type in {addonprefs.right1, addonprefs.right2, addonprefs.right3}:
+		elif event.type in {self.addonprefs.right1, self.addonprefs.right2, self.addonprefs.right3}:
 			if event.value == 'PRESS':
 				self.rightnav = True
 			else:
 				self.rightnav = False
-		elif event.type in {addonprefs.forward1, addonprefs.forward2, addonprefs.forward3}:
+		elif event.type in {self.addonprefs.forward1, self.addonprefs.forward2, self.addonprefs.forward3}:
 			if event.value == 'PRESS':
 				self.forwardnav = True
 			else:
 				self.forwardnav = False
-		elif event.type in {addonprefs.back1, addonprefs.back2, addonprefs.back3}:
+		elif event.type in {self.addonprefs.back1, self.addonprefs.back2, self.addonprefs.back3}:
 			if event.value == 'PRESS':
 				self.backnav = True
 			else:
 				self.backnav = False
-		elif event.type in {addonprefs.up1, addonprefs.up2, addonprefs.up3}:
+		elif event.type in {self.addonprefs.up1, self.addonprefs.up2, self.addonprefs.up3}:
 			if event.value == 'PRESS':
 				self.upnav = True
 			else:
 				self.upnav = False
-		elif event.type in {addonprefs.down1, addonprefs.down2, addonprefs.down3}:
+		elif event.type in {self.addonprefs.down1, self.addonprefs.down2, self.addonprefs.down3}:
 			if event.value == 'PRESS':
 				self.downnav = True
 			else:
@@ -536,7 +538,7 @@ class FPSFlyStart(bpy.types.Operator):
 					self.movetoground()
 					
 					
-		if event.type == addonprefs.teleport:
+		if event.type == self.addonprefs.teleport:
 			if event.value == 'PRESS':
 				eyevec = -Vector(self.rv3d.view_matrix[2][:3])
 				eye = Vector(self.rv3d.view_matrix.inverted().col[3][:3])
@@ -546,7 +548,7 @@ class FPSFlyStart(bpy.types.Operator):
 				hit = self.scn.ray_cast(start, end)
 				if hit[0]:
 					delta = hit[3] - eye
-					delta.length -= addonprefs.TDistance
+					delta.length -= self.addonprefs.TDistance
 					self.rv3d.view_location += delta
 					self.rv3d.update()
 				if self.scn.Walk:
@@ -572,34 +574,34 @@ class FPSFlyStart(bpy.types.Operator):
 
 	def moveleft(self):
 		bfvec = Vector(self.rv3d.view_matrix[0][:3])
-		bfvec.length = addonprefs.Speed / self.divi
+		bfvec.length = self.addonprefs.Speed / self.divi
 		self.rv3d.view_location -= bfvec
 	def moveright(self):
 		bfvec = Vector(self.rv3d.view_matrix[0][:3])
-		bfvec.length = addonprefs.Speed / self.divi
+		bfvec.length = self.addonprefs.Speed / self.divi
 		self.rv3d.view_location += bfvec
 	def moveforward(self):
 		bfvec = Vector(self.rv3d.view_matrix[2][:3])
-		bfvec.length = addonprefs.Speed / self.divi
+		bfvec.length = self.addonprefs.Speed / self.divi
 		self.rv3d.view_location -= bfvec
 	def moveback(self):
 		bfvec = Vector(self.rv3d.view_matrix[2][:3])
-		bfvec.length = addonprefs.Speed / self.divi
+		bfvec.length = self.addonprefs.Speed / self.divi
 		self.rv3d.view_location += bfvec
 	def moveup(self):
 		bfvec = Vector((0, 0, 1))
-		bfvec.length = addonprefs.Speed / self.divi
+		bfvec.length = self.addonprefs.Speed / self.divi
 		if self.scn.Walk:
-			addonprefs.Distance += bfvec.length
+			self.addonprefs.Distance += bfvec.length
 		else:
 			self.rv3d.view_location += bfvec
 	def movedown(self):
 		bfvec = Vector((0, 0, 1))
-		bfvec.length = addonprefs.Speed / self.divi
+		bfvec.length = self.addonprefs.Speed / self.divi
 		if self.scn.Walk:
-			addonprefs.Distance -= bfvec.length
-			if addonprefs.Distance < 0:
-				addonprefs.Distance = 0
+			self.addonprefs.Distance -= bfvec.length
+			if self.addonprefs.Distance < 0:
+				self.addonprefs.Distance = 0
 		else:
 			self.rv3d.view_location -= bfvec
 			
@@ -613,20 +615,21 @@ class FPSFlyStart(bpy.types.Operator):
 			hit = self.scn.ray_cast(start, end)
 			if not (hit[0]):
 				return
-			cammat.col[3][2] = hit[3][2] + addonprefs.Distance
+			cammat.col[3][2] = hit[3][2] + self.addonprefs.Distance
 			self.rv3d.view_matrix = cammat.inverted()
 			self.rv3d.update()
 		else:
 			while True:
 				hit = self.scn.ray_cast(start, end)
+				print (hit)
 				if hit[0]:
 					if self.ground == None:
 						self.ground = hit[1]
 					if hit[1] == self.ground:
-						cammat.col[3][2] = hit[3][2] + addonprefs.Distance
+						cammat.col[3][2] = hit[3][2] + self.addonprefs.Distance
 						self.rv3d.view_matrix = cammat.inverted()
 						self.rv3d.update()
-						break
+						return
 					start = hit[3] + Vector((0, 0, -0.00001))
 				else:
 					self.scn.Walk = False
