@@ -31,6 +31,7 @@ Use WASD (or ZQSD on Azerty) during navigation to move left/right forward/backwa
 a certain direction (default RIGHTMOUSE needs to be kept pressed to do mouselook.
 Also added EQ/EA for moving up/down.  update: now also X and V for down and SPACEBAR for up.
 Use mousewheel to adjust speed.
+Keep SHIFT pressed to run.
 Check "Walkmode" to switch from fly to walk mode; youll always be at a fixed distance above one or
 all objects; two options: "All", youll be walking on any object under you, or "Drop": youll drop down
 and the first object you hit will be your ground object.
@@ -39,14 +40,15 @@ you were pointing at.
 Choose a ground object in the pulldown menu (Npanel) before entering nav mode
 to use walkmode; in walkmode you are always at the same distance above the chosen
 ground object, you can change this distance during nav by using Up/Down controls.
+Press F during navigation to switch between walk and fly mode.
 
 Only works in perspective mode!
 
 Go to FPSFly Addon Preferences (UserPreferences->Addons->3D View->FPSFly and click arrow next to it) to change options :
 Active/Passive mode :  always mouselook (passive=off) or when RIGHTMOUSE pressed (active=on).
-Distance : the default distance above ground when walking on ground object.
+Height : the default height above ground when walking on ground object.
 Teleport Distance :  how close to the object youre teleported.
-Scene Scale :  sets multiplier for Distance and Teleport Distance
+Scene Scale :  sets multiplier for Height and Teleport Distance
 Navigation speed :  set flying speed.
 Keyboard layout :  choose QWERTY or AZERTY.
 Mouse sensitivity.
@@ -60,7 +62,7 @@ Key bindings: Set up to three keys/buttons for each control.
 bl_info = {
     "name": "FPSFly",
     "author": "Gert De Roost",
-    "version": (0, 7, 8),
+    "version": (0, 8, 0),
     "blender": (2, 6, 8),
     "location": "View3D > UI > FPSFly",
     "description": "FPS viewport navigation",
@@ -89,20 +91,21 @@ class SetKey(bpy.types.Operator):
     
     key = bpy.props.StringProperty()
 
-    def invoke(self, context, event):
+    def execute(self, context):
     
         context.window_manager.modal_handler_add(self)
+        
+        self.addonprefs = context.user_preferences.addons["space_view3d_fpsfly"].preferences
         
         return {'RUNNING_MODAL'}
 
     def modal(self, context, event):
     
-        addonprefs = context.user_preferences.addons["space_view3d_fpsfly"].preferences
-        
         isset = False
         if not(event.type in {'MOUSEMOVE', 'INBETWEEN_MOUSEMOVE', 'TIMER', 'NONE'}):
             if event.value == 'PRESS':
-                setattr(addonprefs, self.key, event.type)
+                setattr(self.addonprefs, self.key, event.type)
+                context.scene.update()
                 isset = True
         
         if isset:
@@ -132,8 +135,11 @@ class FPSFlyAddonPreferences(bpy.types.AddonPreferences):
 
     bl_idname = "space_view3d_fpsfly"
     
-    oldkeyboard = None
-    
+    oldkeyboard = bpy.props.StringProperty(
+            name = "Helper property", 
+            description = "",
+            default = "RIGHTMOUSE")
+
     mouselook = bpy.props.StringProperty(
             name = "Mouselook Button/Key", 
             description = "Key binding for mouselook",
@@ -143,6 +149,11 @@ class FPSFlyAddonPreferences(bpy.types.AddonPreferences):
             name = "Teleport Button/Key", 
             description = "Key binding for teleport",
             default = "T")
+
+    walkmode = bpy.props.StringProperty(
+            name = "Switch walk/fly mode Button/Key", 
+            description = "Key binding for switching walk/fly mode",
+            default = "F")
 
     left1 = bpy.props.StringProperty(
             name = "", 
@@ -264,12 +275,12 @@ class FPSFlyAddonPreferences(bpy.types.AddonPreferences):
             description = "Switch between active and passive mouselook mode",
             default = True)
             
-    Distance = bpy.props.FloatProperty(
-            name = "Distance to ground objects", 
-            description = "Sets the  default walker distance to the ground",
+    Height = bpy.props.FloatProperty(
+            name = "Height above ground objects", 
+            description = "Sets the  default walker distance above the ground",
             min = 0,
             max = 1000,
-            default = 2)
+            default = 1.7)
             
     TDistance = bpy.props.FloatProperty(
             name = "Teleport distance", 
@@ -281,26 +292,30 @@ class FPSFlyAddonPreferences(bpy.types.AddonPreferences):
     Scale = bpy.props.FloatProperty(
             name = "Scene scale", 
             description = "Allows to multiply Speed, Distance and Teleport Distance according to scene scale",
-            min = 0,
+            min = 0.000001,
             max = 1000,
             default = 1)
             
     def draw(self, context):
 
         self.layout.prop(self, "ActPass")
-        self.layout.prop(self, "Distance")
+        self.layout.prop(self, "Height")
         self.layout.prop(self, "TDistance")
-        self.layout.prop(self, "Keyboard")
+        self.layout.prop(self, "Scale")
         self.layout.prop(self, "Speed")
         self.layout.prop(self, "MSens")
         self.layout.prop(self, "YMirror")
         self.layout.label(text="Key Bindings:")
+        self.layout.prop(self, "Keyboard")
         row = self.layout.row()
         row.prop(self, "mouselook")
         row.operator("fpsfly.setkey", text="Set").key="mouselook"       
         row = self.layout.row()
         row.prop(self, "teleport")
         row.operator("fpsfly.setkey", text="Set").key="teleport"        
+        row = self.layout.row()
+        row.prop(self, "walkmode")
+        row.operator("fpsfly.setkey", text="Set").key="walkmode"        
         split = self.layout.split(0.1)
         split.label(text="left Key")
         row = split.row()
@@ -388,10 +403,15 @@ class FPSFlyStart(bpy.types.Operator):
         self.rv3d = context.space_data.region_3d
         self.window = context.window
         
+        if not(self.rv3d.is_perspective):
+            self.rv3d.view_perspective = 'PERSP'
+        
+        self.hchange = False
         if self.scn.Walk:
             self.ground = None
             self.movetoground()
             
+        self.runmulti = 1   
         self.divi = 200
         self.acton = False
         self.leftnav = False
@@ -436,7 +456,13 @@ class FPSFlyStart(bpy.types.Operator):
 
             bpy.types.SpaceView3D.draw_handler_remove(self._handle, 'WINDOW')
             return {'FINISHED'}
-            
+
+        if event.type in {'LEFT_SHIFT', 'RIGHTSHIFT'}:
+            if event.value == 'PRESS':
+                self.runmulti = 1.5
+            else:
+                self.runmulti = 1
+
         if event.type == 'WHEELUPMOUSE':
             self.addonprefs.Speed *= 1.4
         if event.type == 'WHEELDOWNMOUSE':
@@ -548,6 +574,13 @@ class FPSFlyStart(bpy.types.Operator):
                     self.movetoground()
                     
                     
+        if event.type == self.addonprefs.walkmode:
+            if event.value == 'PRESS':
+                self.scn.Walk = not(self.scn.Walk)
+                if self.scn.Walk:
+                    self.hchange = True
+                self.regionui.tag_redraw()
+                
         if event.type == self.addonprefs.teleport:
             if event.value == 'PRESS':
                 eyevec = -Vector(self.rv3d.view_matrix[2][:3])
@@ -558,7 +591,11 @@ class FPSFlyStart(bpy.types.Operator):
                 hit = self.scn.ray_cast(start, end)
                 if hit[0]:
                     delta = hit[3] - eye
-                    delta.length -= self.addonprefs.TDistance * self.addonprefs.Scale
+                    length = delta.length - self.addonprefs.TDistance * self.addonprefs.Scale
+                    if length > 0:
+                        delta.length = length
+                    else:
+                        return {'RUNNING_MODAL'}
                     self.rv3d.view_location += delta
                     self.rv3d.update()
                 if self.scn.Walk:
@@ -584,34 +621,34 @@ class FPSFlyStart(bpy.types.Operator):
 
     def moveleft(self):
         bfvec = Vector(self.rv3d.view_matrix[0][:3])
-        bfvec.length = self.addonprefs.Speed * self.addonprefs.Scale / self.divi
+        bfvec.length = self.addonprefs.Speed * self.addonprefs.Scale * self.runmulti / self.divi
         self.rv3d.view_location -= bfvec
     def moveright(self):
         bfvec = Vector(self.rv3d.view_matrix[0][:3])
-        bfvec.length = self.addonprefs.Speed * self.addonprefs.Scale / self.divi
+        bfvec.length = self.addonprefs.Speed * self.addonprefs.Scale * self.runmulti / self.divi
         self.rv3d.view_location += bfvec
     def moveforward(self):
         bfvec = Vector(self.rv3d.view_matrix[2][:3])
-        bfvec.length = self.addonprefs.Speed * self.addonprefs.Scale / self.divi
+        bfvec.length = self.addonprefs.Speed * self.addonprefs.Scale * self.runmulti / self.divi
         self.rv3d.view_location -= bfvec
     def moveback(self):
         bfvec = Vector(self.rv3d.view_matrix[2][:3])
-        bfvec.length = self.addonprefs.Speed * self.addonprefs.Scale / self.divi
+        bfvec.length = self.addonprefs.Speed * self.addonprefs.Scale * self.runmulti / self.divi
         self.rv3d.view_location += bfvec
     def moveup(self):
         bfvec = Vector((0, 0, 1))
-        bfvec.length = self.addonprefs.Speed * self.addonprefs.Scale / self.divi
+        bfvec.length = self.addonprefs.Speed * self.addonprefs.Scale * self.runmulti / self.divi
         if self.scn.Walk:
-            self.addonprefs.Distance += bfvec.length * self.addonprefs.Scale
+            self.addonprefs.Height += bfvec.length * self.addonprefs.Scale
         else:
             self.rv3d.view_location += bfvec
     def movedown(self):
         bfvec = Vector((0, 0, 1))
-        bfvec.length = self.addonprefs.Speed * self.addonprefs.Scale / self.divi
+        bfvec.length = self.addonprefs.Speed * self.addonprefs.Scale * self.runmulti / self.divi
         if self.scn.Walk:
-            self.addonprefs.Distance -= bfvec.length * self.addonprefs.Scale
-            if self.addonprefs.Distance < 0:
-                self.addonprefs.Distance = 0
+            self.addonprefs.Height -= bfvec.length * self.addonprefs.Scale
+            if self.addonprefs.Height <= 0:
+                self.addonprefs.Height = 0.0001
         else:
             self.rv3d.view_location -= bfvec
             
@@ -625,18 +662,25 @@ class FPSFlyStart(bpy.types.Operator):
             hit = self.scn.ray_cast(start, end)
             if not (hit[0]):
                 return
-            cammat.col[3][2] = hit[3][2] + (self.addonprefs.Distance * self.addonprefs.Scale)
+            if self.hchange:
+                self.hchange = False 
+                self.addonprefs.Height = (eye - hit[3]).length
+                return
+            cammat.col[3][2] = hit[3][2] + (self.addonprefs.Height * self.addonprefs.Scale)
             self.rv3d.view_matrix = cammat.inverted()
             self.rv3d.update()
         else:
             while True:
                 hit = self.scn.ray_cast(start, end)
-                print (hit)
                 if hit[0]:
                     if self.ground == None:
                         self.ground = hit[1]
                     if hit[1] == self.ground:
-                        cammat.col[3][2] = hit[3][2] + (self.addonprefs.Distance * self.addonprefs.Scale)
+                        if self.hchange:
+                            self.hchange = False
+                            self.addonprefs.Height = (eye - hit[3]).length
+                            return
+                        cammat.col[3][2] = hit[3][2] + (self.addonprefs.Height * self.addonprefs.Scale)
                         self.rv3d.view_matrix = cammat.inverted()
                         self.rv3d.update()
                         return
@@ -663,7 +707,9 @@ class FPSFlyStart(bpy.types.Operator):
             glEnd()
             
             
-        
+def addtomenu(self, context):  
+    self.layout.operator("view3d.fpsfly", text = "Enter FPS navigation mode")       
+
 def register():
 
     bpy.types.Scene.Walk = bpy.props.BoolProperty(
@@ -679,6 +725,12 @@ def register():
 
     bpy.utils.register_module(__name__)
     
+    bpy.types.VIEW3D_MT_view_navigation.append(addtomenu)
+
+    addonprefs = bpy.context.user_preferences.addons["space_view3d_fpsfly"].preferences
+        
+    addonprefs.oldkeyboard = addonprefs.Keyboard
+        
     bpy.app.handlers.scene_update_post.append(sceneupdate_handler)  
 
     wm = bpy.context.window_manager
@@ -703,6 +755,7 @@ if __name__ == "__main__":
 def sceneupdate_handler(dummy):
 
     addonprefs = bpy.context.user_preferences.addons["space_view3d_fpsfly"].preferences
+        
         
     if not(addonprefs.Keyboard == addonprefs.oldkeyboard):
         if addonprefs.Keyboard == "QWERTY":
